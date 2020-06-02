@@ -61,11 +61,12 @@ des<- as.data.frame(psych::describe(lq2002))
 
  #calculate icc by package
  psych::ICC(sf)
-irr::icc(sf, model = "oneway", unit = "average")
-irr::icc(sf, model = "twoway", type="agreement", unit = "average")
-irr::icc(sf, model = "twoway", type="consistency", unit = "average")
+icc1<-irr::icc(sf, model = "oneway", unit = "average")
+icc_a1<-irr::icc(sf, model = "twoway", type="agreement", unit = "average")
+icc_c1<-irr::icc(sf, model = "twoway", type="consistency", unit = "average")
 
- 
+icc_a1$subjects
+
  
  
  use1<- matrix(c(9,    2,   5,    8,
@@ -100,7 +101,7 @@ irr::icc(sf, model = "twoway", type="consistency", unit = "average")
      d_sum = sum(d)
    )
  
- diagnoses2<-diagnoses %>% 
+ diagnoses2<-diagnoses %>%  #the main reason to set diagnoses2, is for SPSS run Kendall
    dplyr::mutate(
      rater1 = recode(rater1, 
                      `1. Depression`           = 1L,
@@ -152,6 +153,9 @@ irr::icc(sf, model = "twoway", type="consistency", unit = "average")
  irr::kappam.fleiss(diagnoses[, 1:3])
  #Kendall
  irr::kendall(diagnoses, TRUE)
+ 
+ 
+ 
  
  #--save_data--------
  #save the example data to run in spss
