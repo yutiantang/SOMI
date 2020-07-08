@@ -38,6 +38,9 @@ require(mitools, quietly = TRUE)
 require(sjstats, quietly = TRUE)
 require(miceadds, quietly = TRUE)
 require(mitml, quietly = TRUE)
+library(MachineShop)
+library(Amelia)
+library(merTools)
 
 # ---- declare-globals ---------------------------------------------------------
 
@@ -399,25 +402,49 @@ res4 <- summary(lmer_pool(fit4))
 res5 <- summary(lmer_pool(fit5))
 #res6 <- summary(lmer_pool(fit6))
 
-pool.compare(fit1, fit1b, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
+#pool.compare(fit1, fit1b, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
 pool.compare(fit2, fit1, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
 pool.compare(fit3, fit2, method = "wald")
-pool.compare(fit2b, fit2, method = "wald")
+#pool.compare(fit2b, fit2, method = "wald")
 
-pool.compare(fit1_fix, fit1, method = "wald")
-D3(fit6, fit2)
+#pool.compare(fit1_fix, fit1, method = "wald")
+#D3(fit6, fit2)
 
-D3(fit1b, fit1) #no sig--> does not need fit2b
+#D3(fit1b, fit1) #no sig--> does not need fit2b
 
-D3(fit2, fit1) #best model is fit2
-D3(fit3, fit2) #sig
-D3(fit4, fit3) #no sig between fit4 and fit3, therefore, no need this 
-D3(fit5, fit4)
+#D3(fit2, fit1) #best model is fit2
+#D3(fit3, fit2) #sig
+#D3(fit4, fit3) #no sig between fit4 and fit3, therefore, no need this 
+#D3(fit5, fit4)
 
 mitml::testModels(fit2, fit1, method = "D3", use = "likelihood")
 mitml::testModels(fit3, fit2, method = "D3", use = "likelihood")
 mitml::testModels(fit4, fit3, method = "D3", use = "likelihood")
 mitml::testModels(fit5, fit4, method = "D3", use = "likelihood")
+
+
+
+#to get the AIC
+#to get AIC
+model1 <- "CATS ~ time +(1|ID)"
+model2 <- "CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID)"
+model3 <- "CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
+model4 <- "CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
+model5 <- "CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID)"
+
+modlist1 <- lmerModList(data=ds_data_list, model1)
+modlist2 <- lmerModList(data=ds_data_list, model2)
+modlist3 <- lmerModList(data=ds_data_list, model3)
+modlist4 <- lmerModList(data=ds_data_list, model4)
+modlist5 <- lmerModList(data=ds_data_list, model5)
+
+summary(modlist1)
+summary(modlist2)
+summary(modlist3)
+summary(modlist4)
+summary(modlist5)
+
+
 
 
 cmod <- mitools::MIextract(fit, fun = coef)
