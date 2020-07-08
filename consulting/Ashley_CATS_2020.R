@@ -16,6 +16,7 @@ library(cem)
 library(lme4)
 library(nlme)
 library(mice)
+
 #library(BiocManager) #this one is special, please see https://bioconductor.org/install/
 #library(randPack)
 library(sp)
@@ -41,6 +42,7 @@ require(mitml, quietly = TRUE)
 library(MachineShop)
 library(Amelia)
 library(merTools)
+require(psfmi, quietly = TRUE)
 
 # ---- declare-globals ---------------------------------------------------------
 
@@ -314,10 +316,47 @@ tabl2<- summary(result)
 fit_dose <- with(ds_data_list, exp=glm(formula(dose ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)))
 res_dose1<- summary(pool(fit_dose))
 
+
+
 #dichotomize dose
+fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age )), family="binomial")
+res_dose2 <- summary(pool(fit_dose2))
+
+fit_dose3 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender)), family="binomial")
+res_dose3 <- summary(pool(fit_dose3))
+
+fit_dose4 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender + cats_baseline)), family="binomial")
+res_dose4 <- summary(pool(fit_dose4))
+
 fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose2 <- summary(pool(fit_dose2))
 
+#to get the R square
+ds_imp2<-ds_imp1 %>% 
+  dplyr::filter(.imp != 0L)
+
+ds_imp3<-ds_imp1 %>% 
+  dplyr::filter(.imp == 0L)
+
+fit_dose3<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
+            fm=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
+            names.var=list("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"))
+
+mivalext_lr(data.val=ds_imp2, nimp=10, impvar=".imp", Outcome="dose_cate",
+            predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"),
+            lp.orig=NULL,
+            #lp.orig=c(-0.006, 0.044, -0.030, 0.001, 0.014, -0.010),
+            cal.plot=TRUE, plot.indiv=TRUE, val.check = FALSE)
+
+
+ds_imp4 <- list("imputation"=ds_imp1)
+class(ds_imp4) <- "amelia"
+formula1<- dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total
+
+fit_dose4 <- Zelig::zelig(formula1, model="logit", data = ds_imp4$imputation)
+summary(fit_dose4)
+
+fit_dose4 <- with(ds_data_list, exp=zelig(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total, model = "logit", data = swiss, cite = FALSE)))
 
 #---mixed_effect------------
 #repeate anova
