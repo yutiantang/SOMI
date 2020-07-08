@@ -37,7 +37,7 @@ require(rstatix, quietly = TRUE)
 require(mitools, quietly = TRUE)
 require(sjstats, quietly = TRUE)
 require(miceadds, quietly = TRUE)
-
+require(mitml, quietly = TRUE)
 
 # ---- declare-globals ---------------------------------------------------------
 
@@ -98,6 +98,58 @@ ds_use2 <- use %>%
     rep =  as.factor(rep)
   )
 
+ds_use0 <- ds %>% 
+  dplyr::select(
+    ID, CATS
+  ) %>% 
+  tidyr::gather("rep", "CATS", -ID) %>% 
+  dplyr::group_by(rep) %>% 
+  dplyr::summarise(
+    total_sample = dplyr::n(),
+    non_missing = sum(!is.na(CATS)),
+    missing     = sum(is.na(CATS)),
+    missing_percent = paste0(sprintf("%4.2f", missing/total_sample*100), "%"),
+    nonmissing_percent = paste0(sprintf("%4.2f", non_missing/total_sample*100), "%") 
+  ) %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(
+    rep = dplyr::case_when(rep=="CATS_Time1_Total"~"1",
+                           rep=="CATS_Time2_Total"~"2",
+                           rep=="CATS_Time3_Total"~"3",
+                           rep=="CATS_Time4_Total"~"4",
+                           rep=="CATS_Time5_Total"~"5",
+                           rep=="CATS_Time6_Total"~"6",
+                           rep=="CATS_Time7_Total"~"7",
+                           rep=="CATS_Time8_Total"~"8",
+                           rep=="CATS_Time9_Total"~"9",
+                           rep=="CATS_Time10_Total"~"10"),
+    rep         = factor(rep, levels =c(
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+    )))
+
+
+#---plots-------------------------
+ggplot(ds_use0, aes(x = rep, y = non_missing, label=nonmissing_percent))+
+  geom_bar(stat = "identity", position='dodge', alpha=.4, color="#c1a16f", fill="#e07587") +
+  geom_text(aes(label = nonmissing_percent),  size = 3,  color="#22353c", vjust=-0.5)+
+  #scale_color_manual(values = sek_col, guide = "none") +
+  #scale_fill_manual(values =  sek_col) +
+  theme_bw()+
+  #theme(axis.title.x=element_blank(),
+  #      axis.text.x=element_blank(),
+  #      axis.ticks.x=element_blank())+
+  labs(title = NULL, x="measure", y="count")
+
+
 
 #---imputation------------
 #formating the data from wide to long
@@ -152,7 +204,9 @@ ds_data_list <- miceadds::mids2datlist(imputed_data_mids)
 
 #--visualize------
 descriptive<-ds_use %>%
-  dplyr::select(Age, Gender, Exp_CATS_Total, dose, psc17_total, CATS) %>%
+  dplyr::filter(rep=="wave_1"
+  ) %>%
+  dplyr::select(Age, Gender, Exp_CATS_Total, dose, psc17_total) %>%
   psych::describe() %>%
   setDT(keep.rownames = "variable") %>%
   dplyr::mutate(
@@ -164,9 +218,34 @@ descriptive<-ds_use %>%
     skew    = sprintf("%4.3f", skew),
     kurtosis= sprintf("%4.3f", kurtosis),
     se      = sprintf("%4.3f", se),
+    missing = sprintf("%4.3f", 1-n/94)
+  ) %>% 
+  dplyr::ungroup()
+
+psych::describe.by(ds_use, group = "rep") 
+ 
+descriptive2<-ds_use %>%
+  dplyr::select(CATS, rep) %>% 
+  dplyr::group_by(rep) %>% 
+  dplyr::summarise(
+    mean    = mean(CATS, na.rm=TRUE),
+    sd      = sd(CATS, na.rm = TRUE),
+    #missing = sprintf("%4.3f", 1-n/94)
+  ) %>% 
+  dplyr::ungroup()
+  
+  
+descriptive3<-ds_use %>%
+  dplyr::filter(rep=="wave_1"
+  ) %>%
+  dplyr::mutate(
+    Gender = as.integer(Gender)
+  ) %>% 
+  dplyr::summarise(
+    male = sum(Gender[Gender==1L], na.rm=T),
+    sample= dplyr::n(),
+    female = sample - male
   )
-
-
 
 bxp1 <- ds_use %>%
   dplyr::select(ID, rep, CATS) %>%
@@ -229,11 +308,11 @@ tabl2<- summary(result)
 
 #---outcome_dose-------
 
-fit_dose <- with(ds_data_list, exp=glm(formula(dose ~ Exp_CATS_Total + psc17_total)))
+fit_dose <- with(ds_data_list, exp=glm(formula(dose ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)))
 res_dose1<- summary(pool(fit_dose))
 
 #dichotomize dose
-fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Exp_CATS_Total + psc17_total)), family="binomial")
+fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose2 <- summary(pool(fit_dose2))
 
 
@@ -287,44 +366,58 @@ mod_table1 <- mod_table%>%
 
 #model 2: include covariates: no sig
 
-fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + Exp_CATS_Total + psc17_total+(time||ID)))
-          )
 
+#fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(time||ID)))
+#          )
 
-fit2<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender +  Exp_CATS_Total + psc17_total+(time||ID))),
+fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(1|ID)))
+)
+
+fit2<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID))),
          )
 
+#fit2b<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + dose+  Exp_CATS_Total + psc17_total+(time||ID))),
+#)
 
-fit3<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender*time +  Exp_CATS_Total + psc17_total+(time||ID))),
+fit3<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
           )
 
-fit4<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender +  Exp_CATS_Total*time + psc17_total+(time||ID))),
+fit4<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
            )
 
-fit5<- with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + Exp_CATS_Total + psc17_total*time+ (time||ID))),
-            )
+fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID))),
+)
 
-res1a <- summary(lmer_pool(fit1_fix))
+#res1a <- summary(lmer_pool(fit1_fix))
+#res2b <- summary(lmer_pool(fit2b))
+
+
 res1 <- summary(lmer_pool(fit1))
 res2 <- summary(lmer_pool(fit2))
 res3 <- summary(lmer_pool(fit3))
 res4 <- summary(lmer_pool(fit4))
 res5 <- summary(lmer_pool(fit5))
+#res6 <- summary(lmer_pool(fit6))
 
-pool.compare(fit1, fit0, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
+pool.compare(fit1, fit1b, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
 pool.compare(fit2, fit1, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
 pool.compare(fit3, fit2, method = "wald")
+pool.compare(fit2b, fit2, method = "wald")
 
 pool.compare(fit1_fix, fit1, method = "wald")
-D3(fit1, fit0)
+D3(fit6, fit2)
 
-
+D3(fit1b, fit1) #no sig--> does not need fit2b
 
 D3(fit2, fit1) #best model is fit2
-D3(fit3, fit1) #sig
-D3(fit4, fit1) #no sig between fit4 and fit3, therefore, no need this 
-D3(fit5, fit1)
+D3(fit3, fit2) #sig
+D3(fit4, fit3) #no sig between fit4 and fit3, therefore, no need this 
+D3(fit5, fit4)
 
+mitml::testModels(fit2, fit1, method = "D3", use = "likelihood")
+mitml::testModels(fit3, fit2, method = "D3", use = "likelihood")
+mitml::testModels(fit4, fit3, method = "D3", use = "likelihood")
+mitml::testModels(fit5, fit4, method = "D3", use = "likelihood")
 
 
 cmod <- mitools::MIextract(fit, fun = coef)
