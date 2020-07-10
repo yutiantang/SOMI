@@ -319,17 +319,36 @@ res_dose1<- summary(pool(fit_dose))
 
 
 #dichotomize dose
-fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age )), family="binomial")
+#fit_dose0 <- with(ds_data_list, exp=lm(formula(dose_cate ~ 1 )), family="binomial")
+#res_dose0 <- summary(pool(fit_dose0))
+
+fit_dose2 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose2 <- summary(pool(fit_dose2))
 
-fit_dose3 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender)), family="binomial")
+fit_dose3 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose3 <- summary(pool(fit_dose3))
 
-fit_dose4 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender + cats_baseline)), family="binomial")
+fit_dose4 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose4 <- summary(pool(fit_dose4))
 
-fit_dose2 <- with(ds_data_list, exp=glm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
-res_dose2 <- summary(pool(fit_dose2))
+fit_dose5 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + psc17_total)), family="binomial")
+res_dose5 <- summary(pool(fit_dose5))
+
+#fit_dose5b <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + psc17_total + Age * psc17_total)), family="binomial")
+#res_dose5b <- summary(pool(fit_dose5b))
+
+#fit_dose6 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
+#res_dose6 <- summary(pool(fit_dose6))
+
+
+
+glm.mids(ds_data_list, )
+D1(fit_dose3, fit_dose2)
+D1(fit_dose4, fit_dose3)
+D1(fit_dose5, fit_dose4)
+D1(fit_dose6, fit_dose5)
+
+
 
 #to get the R square
 ds_imp2<-ds_imp1 %>% 
@@ -338,15 +357,54 @@ ds_imp2<-ds_imp1 %>%
 ds_imp3<-ds_imp1 %>% 
   dplyr::filter(.imp == 0L)
 
-fit_dose3<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
+fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
             fm=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
             names.var=list("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"))
 
 mivalext_lr(data.val=ds_imp2, nimp=10, impvar=".imp", Outcome="dose_cate",
             predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"),
-            lp.orig=NULL,
-            #lp.orig=c(-0.006, 0.044, -0.030, 0.001, 0.014, -0.010),
+            #lp.orig=NULL,
+            lp.orig=c(-0.006, 0.044, -0.030, 0.001, 0.014, -0.010),
             cal.plot=TRUE, plot.indiv=TRUE, val.check = FALSE)
+
+
+
+pool_lr <- psfmi_lr(data=ds_imp2, nimp=10, impvar=".imp", 
+                    Outcome="dose_cate",
+                    predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"), 
+                    #keep.predictors = "Smoking",
+                    p.crit = 0.05, method="D1")
+
+pool_lr$RR_Model
+
+pool_lr$multiparm
+
+
+
+
+fit_log1 <- lm.mids(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total, data=ds_data_list)
+
+fit_dose2 <- as.mira(fit_dose2)
+fit_dose3 <- as.mira(fit_dose3)
+fit_dose4 <- as.mira(fit_dose4)
+fit_dose5 <- as.mira(fit_dose5)
+
+
+pool.r.squared(fit_dose2)
+pool.r.squared(fit_dose3)
+pool.r.squared(fit_dose4)
+pool.r.squared(fit_dose5)
+
+
+
+
+
+
+bdfile <- system.file("extdata", "vcf1a.bdose", package = "BinaryDosage")
+bdinfo <- getbdinfo(bdfiles = bdfile)
+snp1 <- getsnp(bdinfo = bdinfo, 1, dosageonly = FALSE)
+rsq <- BinaryDosage:::getrsq(snp1$dosage, p2 = snp1$p2)
+
 
 
 ds_imp4 <- list("imputation"=ds_imp1)
