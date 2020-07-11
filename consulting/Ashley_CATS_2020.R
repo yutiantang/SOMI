@@ -361,11 +361,11 @@ fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
             fm=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
             names.var=list("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"))
 
-mivalext_lr(data.val=ds_imp2, nimp=10, impvar=".imp", Outcome="dose_cate",
-            predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"),
-            #lp.orig=NULL,
-            lp.orig=c(-0.006, 0.044, -0.030, 0.001, 0.014, -0.010),
-            cal.plot=TRUE, plot.indiv=TRUE, val.check = FALSE)
+#mivalext_lr(data.val=ds_imp2, nimp=10, impvar=".imp", Outcome="dose_cate",
+#            predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"),
+#            #lp.orig=NULL,
+#            lp.orig=c(-0.006, 0.044, -0.030, 0.001, 0.014, -0.010),
+#            cal.plot=TRUE, plot.indiv=TRUE, val.check = FALSE)
 
 
 
@@ -544,16 +544,16 @@ summary(modlist5)
 
 
 
-cmod <- mitools::MIextract(fit, fun = coef)
-vmod <- mitools::MIextract(fit, fun = vcov)
-res1 <- summary(pool(fit))
-mod_table <- cbind(rownames(res1), res1)%>%dplyr::rename("Variables" = `rownames(res1)` )
+cmod <- mitools::MIextract(fit5, fun = coef)
+vmod <- mitools::MIextract(fit5, fun = vcov)
+
+mod_table <- cbind(rownames(res5), res5)%>%dplyr::rename("Variables" = `rownames(res5)` )
 mod_table2 <- mod_table%>%
   dplyr::mutate(
-    results = sprintf("%0.3f", estimate),
-    se = sprintf("%0.3f", std.error),
-    t = sprintf("%0.3f", statistic),
-    p = sprintf("%0.3f", p.value)#,
+    results = sprintf("%0.3f", est),
+    se = sprintf("%0.3f", se),
+    t = sprintf("%0.3f", t),
+    p = sprintf("%0.3f", p)#,
     #lwr = sprintf("%0.3f", `lo 95`),
     #upr = sprintf("%0.3f", `hi 95`)
   )%>%
@@ -563,7 +563,17 @@ mod_table2 <- mod_table%>%
 
 
 #ds_data_list2<- as.mira(ds_data_list)
+fit5_model <- 
 
+ds_predictions <- jtools::make_new_data(fit5[[1]], pred = "CATS") #If you need more options to appear for variables in your newdata for predictions, add them here
+preds <- sapply(fit5, predict, newdata=ds_predictions, allow.new.levels = TRUE)
+phats  <- preds[1,]
+vw <- (unlist(preds[2,]))^2
+pred_vals <- summary(miceadds::pool_mi(phats, vw))%>%
+  dplyr::select(fit = results,
+                lwr = `(lower`,
+                upr = `upper)`)
+ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals)
 
 
 #fit_anova <- with(ds_data_list, exp = aov(CATS~factor(rep)+Error(factor(ID))))
