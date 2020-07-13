@@ -578,7 +578,62 @@ pred_vals <- summary(miceadds::pool_mi(phats, vw))%>%
 ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals) #ds_prediction to get the estmiated parameters
 
 
-cmod_data <- as.data.frame(cmod)
+cmod_data <- cmod %>% 
+  map(function(x){as.data.frame(x$ID) %>% 
+      setDT(keep.rownames = TRUE)%>% 
+      dplyr::select(rn, `(Intercept)`, time)}) %>% 
+  #unlist() %>% 
+  as.data.frame() %>% 
+  dplyr::mutate(
+    intercept = rowMeans(.[c("X.Intercept.", "X.Intercept..1", "X.Intercept..2", "X.Intercept..3", "X.Intercept..4", 
+                             "X.Intercept..5", "X.Intercept..6", "X.Intercept..7", "X.Intercept..8", "X.Intercept..9")]),
+    slope      = rowMeans(.[c("time", "time.1", "time.2", "time.3", "time.4",
+                              "time.5", "time.6", "time.7", "time.8", "time.9")])
+  ) %>% 
+  dplyr::select(rn, intercept, slope) %>% 
+  rename(id = rn)
+  
+
+
+palette_stage <- c("FK"="#79c8c3"  , "SAU"="#ce8a81", "FK declined"="#9d72a7")
+ggplot(data=cmod_data, aes(x=CNTAC_SEQ, y=PSC.TOTAL, group=infk, fill=infk, color=infk))+
+  geom_point(size=5, alpha=0.4)+
+  geom_abline(intercept=fixef(lwpsct)[1], slope=fixef(lwpsct)[2], linetype="twodash", size=1.5, color="#ce8a81", alpha=0.8)+
+  geom_abline(intercept=sum(fixef(lwpsct)[c(1, 3)]), slope=sum(fixef(lwpsct)[c(2, 5)]), linetype="solid", size=1.5, color="#35978f")+
+  geom_abline(intercept=sum(fixef(lwpsct)[c(1, 4)]), slope=sum(fixef(lwpsct)[c(2, 6)]), linetype="dashed", size=1.5, color="#9d72a7")+
+  scale_x_continuous() +
+  coord_cartesian(ylim = c(0, 40)) +
+  scale_color_manual(values = palette_stage) +
+  scale_fill_manual(values = palette_stage, guide="none") +
+  theme(panel.grid.major.x = element_blank()) +
+  theme(panel.grid.minor.y = element_blank()) +
+  theme(legend.position="none")+
+  theme_bw() +
+  theme(text=element_text(size=12,  family="sans"))+
+  labs(
+    title = "Pediatric Symptom Checklist (PSC)\n in repeated measurements",
+    x="Wave",
+    y="Pediatric Symptom Checklist Scores",
+    color="Condition"
+  )
+
+
+ds_use_visual <- ds_use2 %>% 
+  dplyr::mutate(
+    rep = dplyr::recode(rep,"wave_1" = 1, 
+                        "wave_2" = 2, 
+                        "wave_3" = 3, 
+                        "wave_4" = 4)
+  )
+
+
+ggplot(data=ds_use_visual, aes(x=rep, y=CATS))+
+  geom_point(size=5, alpha=0.4)+
+  geom_abline(intercept=cmod_data$intercept[1], slope=cmod_data$slope[1], linetype="twodash", size=1.5, color="#ce8a81", alpha=0.8)
+
+
+
+
 
 #fit_anova <- with(ds_data_list, exp = aov(CATS~factor(rep)+Error(factor(ID))))
 #res_anova <- summary(pool(fit_anova))
