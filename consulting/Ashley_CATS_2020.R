@@ -470,6 +470,9 @@ mod_table1 <- mod_table%>%
 #fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(time||ID)))
 #          )
 
+
+#we did not applied the random effect on the slope is main for fit5, if the random effect added, we will
+#have over-fit model and hit the error of "boundary (singular) fit: see ?isSingular"
 fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(1|ID)))
 )
 
@@ -485,7 +488,7 @@ fit3<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + cats_ba
 fit4<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
            )
 
-fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID))),
+fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(time|ID))),
 )
 
 #res1a <- summary(lmer_pool(fit1_fix))
@@ -529,7 +532,7 @@ model3 <- "CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_to
 model4 <- "CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
 model5 <- "CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID)"
 
-modlist1 <- lmerModList(data=ds_data_list, model1)
+modlist1 <- lmerModList(data=ds_data_list, model1) #this function is able to pool AIC from imputed data
 modlist2 <- lmerModList(data=ds_data_list, model2)
 modlist3 <- lmerModList(data=ds_data_list, model3)
 modlist4 <- lmerModList(data=ds_data_list, model4)
@@ -544,7 +547,7 @@ summary(modlist5)
 
 
 
-cmod <- mitools::MIextract(fit5, fun = coef)
+cmod <- mitools::MIextract(fit5, fun = coef) #to extract the coefficients
 vmod <- mitools::MIextract(fit5, fun = vcov)
 
 mod_table <- cbind(rownames(res5), res5)%>%dplyr::rename("Variables" = `rownames(res5)` )
@@ -563,8 +566,7 @@ mod_table2 <- mod_table%>%
 
 
 #ds_data_list2<- as.mira(ds_data_list)
-fit5_model <- 
-
+#draw plot for 
 ds_predictions <- jtools::make_new_data(fit5[[1]], pred = "CATS") #If you need more options to appear for variables in your newdata for predictions, add them here
 preds <- sapply(fit5, predict, newdata=ds_predictions, allow.new.levels = TRUE)
 phats  <- preds[1,]
@@ -573,8 +575,10 @@ pred_vals <- summary(miceadds::pool_mi(phats, vw))%>%
   dplyr::select(fit = results,
                 lwr = `(lower`,
                 upr = `upper)`)
-ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals)
+ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals) #ds_prediction to get the estmiated parameters
 
+
+cmod_data <- as.data.frame(cmod)
 
 #fit_anova <- with(ds_data_list, exp = aov(CATS~factor(rep)+Error(factor(ID))))
 #res_anova <- summary(pool(fit_anova))
