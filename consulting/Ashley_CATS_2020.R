@@ -43,6 +43,7 @@ library(MachineShop)
 library(Amelia)
 library(merTools)
 require(psfmi, quietly = TRUE)
+require(ggalluvial, quietly = TRUE)
 
 # ---- declare-globals ---------------------------------------------------------
 
@@ -581,16 +582,18 @@ ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals) #ds_prediction 
 cmod_data <- cmod %>% 
   map(function(x){as.data.frame(x$ID) %>% 
       setDT(keep.rownames = TRUE)%>% 
-      dplyr::select(rn, `(Intercept)`, time)}) %>% 
+      dplyr::select(rn, `(Intercept)`, `time:cats_baseline`, time)}) %>% 
   #unlist() %>% 
   as.data.frame() %>% 
   dplyr::mutate(
     intercept = rowMeans(.[c("X.Intercept.", "X.Intercept..1", "X.Intercept..2", "X.Intercept..3", "X.Intercept..4", 
                              "X.Intercept..5", "X.Intercept..6", "X.Intercept..7", "X.Intercept..8", "X.Intercept..9")]),
     slope      = rowMeans(.[c("time", "time.1", "time.2", "time.3", "time.4",
-                              "time.5", "time.6", "time.7", "time.8", "time.9")])
+                              "time.5", "time.6", "time.7", "time.8", "time.9")]),
+    slope2     = rowMeans(.[c("time.cats_baseline", "time.cats_baseline.1","time.cats_baseline.2", "time.cats_baseline.3", "time.cats_baseline.4",
+                              "time.cats_baseline.5", "time.cats_baseline.6", "time.cats_baseline.7", "time.cats_baseline.8", "time.cats_baseline.9")])
   ) %>% 
-  dplyr::select(rn, intercept, slope) %>% 
+  dplyr::select(rn, intercept, slope, slope2) %>% 
   rename(id = rn)
   
 
@@ -617,29 +620,6 @@ ggplot(data=cmod_data, aes(x=CNTAC_SEQ, y=PSC.TOTAL, group=infk, fill=infk, colo
     color="Condition"
   )
 
-
-ds_use_visual <- ds_use2 %>% 
-  dplyr::mutate(
-    rep = dplyr::recode(rep,"wave_1" = 1, 
-                        "wave_2" = 2, 
-                        "wave_3" = 3, 
-                        "wave_4" = 4)
-  )
-
-
-ggplot(data=ds_use_visual, aes(x=rep, y=CATS))+
-  geom_point(size=5, alpha=0.4)+
-  geom_abline(intercept=cmod_data$intercept[1], slope=cmod_data$slope[1], linetype="twodash", size=1.5, color="#ce8a81", alpha=0.8)
-
-
-
-
-
-#fit_anova <- with(ds_data_list, exp = aov(CATS~factor(rep)+Error(factor(ID))))
-#res_anova <- summary(pool(fit_anova))
-#cmod <- mitools::MIextract(fit_anova, fun = coef)
-#vmod <- mitools::MIextract(fit_anova, fun = vcov)
-#an2b <- miceadds::mi.anova(mi.res=ds_imp, formula="CATS~rep+ID", idata=ID)
 
 install.packages("MAMI", repos="http://R-Forge.R-project.org")
 MAMI::mami(ds_data_list2, model="gaussian", outcome = "CATS", id="ID", criterion="AIC")
@@ -695,4 +675,42 @@ sd_residual <- as.data.frame(fit[[1]]@residuals) %>% dplyr::rename(residual = `f
 ds_use4<-ds_use3 %>% 
   dplyr::filter(model.sdRes<=3 & model.sdRes>=-3)
 
+
+
 #no outliers
+
+
+#-----visual----------------------
+baseline <- ds_use2 %>% 
+  dplyr::filter(rep=="wave_1") %>% 
+  dplyr::select(ID, CATS) %>% 
+  dplyr::mutate(
+    cate_baseline_level = dplyr::if_else(CATS >= 28, "baseline high", "baseline low")
+  ) %>% 
+  dplyr::select(-CATS)
+
+
+ds_use_visual <- ds_use %>% 
+  dplyr::mutate(
+    rep = dplyr::recode(rep,"wave_1" = 1, 
+                        "wave_2" = 2, 
+                        "wave_3" = 3, 
+                        "wave_4" = 4),
+    
+    CATS = dplyr::if_else(is.na(CATS), 0, CATS)
+  ) %>% 
+  dplyr::left_join(baseline, by="ID") %>% 
+  dplyr::select(
+    cate_baseline_level, rep, CATS
+  )
+
+
+alluvial_ts(dat=ds_use_visual, wave = 0.6, lwd = 0.1,ygap=1.5, alpha = 0.8,
+            col = color)
+
+
+
+color <-c(
+  "baseline high" = "#ff0000",
+  "baseline low"  = "#D3D3D3"
+)
