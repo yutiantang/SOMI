@@ -1,0 +1,169 @@
+Mplus VERSION 7.4
+MUTHEN & MUTHEN
+07/22/2020   1:28 PM
+
+INPUT INSTRUCTIONS
+
+  TITLE: Example 1 of computation of Cohen’s d with Mplus
+  DATA: FILE IS example1.dat;
+  VARIABLE: NAMES ARE group y;
+  MODEL: y ON group (b);
+  y (r);
+  MODEL CONSTRAINT:
+  new(d);
+  d = b/sqrt(r);
+  OUTPUT: CINTERVAL;
+
+
+
+INPUT READING TERMINATED NORMALLY
+
+
+
+Example 1 of computation of Cohen’s d with Mplus
+
+SUMMARY OF ANALYSIS
+
+Number of groups                                                 1
+Number of observations                                         200
+
+Number of dependent variables                                    1
+Number of independent variables                                  1
+Number of continuous latent variables                            0
+
+Observed dependent variables
+
+  Continuous
+   Y
+
+Observed independent variables
+   GROUP
+
+
+Estimator                                                       ML
+Information matrix                                        OBSERVED
+Maximum number of iterations                                  1000
+Convergence criterion                                    0.500D-04
+Maximum number of steepest descent iterations                   20
+
+Input data file(s)
+  example1.dat
+
+Input data format  FREE
+
+
+
+THE MODEL ESTIMATION TERMINATED NORMALLY
+
+
+
+MODEL FIT INFORMATION
+
+Number of Free Parameters                        3
+
+Loglikelihood
+
+          H0 Value                       -1231.739
+          H1 Value                       -1231.739
+
+Information Criteria
+
+          Akaike (AIC)                    2469.477
+          Bayesian (BIC)                  2479.372
+          Sample-Size Adjusted BIC        2469.868
+            (n* = (n + 2) / 24)
+
+Chi-Square Test of Model Fit
+
+          Value                              0.000
+          Degrees of Freedom                     0
+          P-Value                           0.0000
+
+RMSEA (Root Mean Square Error Of Approximation)
+
+          Estimate                           0.000
+          90 Percent C.I.                    0.000  0.000
+          Probability RMSEA <= .05           0.000
+
+CFI/TLI
+
+          CFI                                1.000
+          TLI                                1.000
+
+Chi-Square Test of Model Fit for the Baseline Model
+
+          Value                             43.915
+          Degrees of Freedom                     1
+          P-Value                           0.0000
+
+SRMR (Standardized Root Mean Square Residual)
+
+          Value                              0.000
+
+
+
+MODEL RESULTS
+
+                                                    Two-Tailed
+                    Estimate       S.E.  Est./S.E.    P-Value
+
+ Y        ON
+    GROUP            113.382     16.179      7.008      0.000
+
+ Intercepts
+    Y                130.174     11.441     11.378      0.000
+
+ Residual Variances
+    Y              13088.782   1308.879     10.000      0.000
+
+New/Additional Parameters
+    D                  0.991      0.150      6.614      0.000
+
+
+QUALITY OF NUMERICAL RESULTS
+
+     Condition Number for the Information Matrix              0.126E-01
+       (ratio of smallest to largest eigenvalue)
+
+
+CONFIDENCE INTERVALS OF MODEL RESULTS
+
+                  Lower .5%  Lower 2.5%    Lower 5%    Estimate    Upper 5%  Upper 2.5%   Upper .5%
+
+ Y        ON
+    GROUP           71.707      81.671      86.767     113.382     139.998     145.094     155.057
+
+ Intercepts
+    Y              100.706     107.751     111.355     130.174     148.994     152.598     159.643
+
+ Residual Variances
+    Y             9717.372   10523.380   10935.677   13088.782   15241.888   15654.185   16460.191
+
+New/Additional Parameters
+    D                0.605       0.697       0.745       0.991       1.238       1.285       1.377
+
+
+DIAGRAM INFORMATION
+
+  Use View Diagram under the Diagram menu in the Mplus Editor to view the diagram.
+  If running Mplus from the Mplus Diagrammer, the diagram opens automatically.
+
+  Diagram output
+    c:\users\ythompso\documents\github\somi\somi_july2020\example1.dgm
+
+     Beginning Time:  13:28:28
+        Ending Time:  13:28:28
+       Elapsed Time:  00:00:00
+
+
+
+MUTHEN & MUTHEN
+3463 Stoner Ave.
+Los Angeles, CA  90066
+
+Tel: (310) 391-9971
+Fax: (310) 391-8971
+Web: www.StatModel.com
+Support: Support@StatModel.com
+
+Copyright (c) 1998-2015 Muthen & Muthen

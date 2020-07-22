@@ -1,0 +1,34 @@
+VERSION 1.1.0
+INPUT
+TITLE:
+ Example 1 of computation of Cohen’s d with Mplus
+DATA:
+ FILE IS example1.dat;
+VARIABLE:
+ NAMES ARE group y;
+OUTPUT:
+ CINTERVAL;
+MODEL:
+ y ON group (b);
+y (r);
+INPUT_END
+3
+0
+0
+0
+ML
+1
+GENERAL
+0
+1
+0
+1
+y group
+2
+1 0
+0
+0
+1 1 group y   113.382    16.179    81.671   145.094
+91 1 group y b
+4 1 y 13088.782  1308.879 10523.380 15654.185
+94 1 y r
