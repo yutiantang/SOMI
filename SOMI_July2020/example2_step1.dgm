@@ -1,0 +1,34 @@
+VERSION 1.1.0
+INPUT
+TITLE:
+ Example 2 of computation of Cohen’s d with Mplus--step1
+DATA:
+ FILE IS example2.dat;
+VARIABLE:
+ NAMES ARE id group  y  time pre_test;
+USEVARIABLES ARE group y;
+OUTPUT:
+ CINTERVAL;
+MODEL:
+ y ON group;
+y (r);
+INPUT_END
+3
+0
+0
+0
+ML
+1
+GENERAL
+0
+1
+0
+1
+y group
+2
+1 0
+0
+0
+1 1 group y    15.489    11.996    -8.022    39.001
+4 1 y 14389.386  1017.447 12395.189 16383.582
+94 1 y r

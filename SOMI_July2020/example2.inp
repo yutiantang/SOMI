@@ -1,0 +1,10 @@
+TITLE: Example 2 of computation of Cohen’s d with Mplus
+DATA: FILE IS example2a.dat;
+VARIABLE: NAMES ARE id group  y  time pre_test;
+USEVARIABLES ARE group  y  pre_test;
+MODEL: y ON pre_test
+group(b);
+MODEL CONSTRAINT:
+new(d);
+d = b/119.956 ;
+OUTPUT: CINTERVAL;

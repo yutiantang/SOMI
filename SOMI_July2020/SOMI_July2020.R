@@ -50,20 +50,89 @@ ds_example1 <- as.data.frame(cbind(Alcohol, Control)) %>%
 
 #example2, 
 Alcohol1 <- rnorm(100, mean = 250, sd = 110)
-Control1 <- rnorm(100, mean = 150, sd = 105)
-Alcohol2 <- rnorm(100, mean = 100, sd = 107)
-Control2 <- rnorm(100, mean = 150, sd = 103)
+Control1 <- rnorm(100, mean = 150, sd = 110)
+Alcohol2 <- rnorm(100, mean = 100, sd = 110)
+Control2 <- rnorm(100, mean = 150, sd = 110)
+
+pre_test <- as.data.frame(cbind(Alcohol1, Control1)) %>% 
+  dplyr::mutate(
+    id= row_number()
+  ) %>% 
+  tidyr::gather(group, pre_test, 1:2) %>% 
+    dplyr::mutate(
+      group = dplyr::if_else(group=="Alcohol1", 0.5,-0.5))
+ 
+
 
 ds_example2 <- as.data.frame(cbind(Alcohol1, Control1, Alcohol2, Control2)) %>% 
-  tidyr::gather(group, y) %>% 
   dplyr::mutate(
-    group = dplyr::if_else(group=="Alcohol", 1L,0L)
+    id = row_number()
+  ) %>% 
+  tidyr::gather(group, y, 1:4) %>% 
+  dplyr::mutate(
+    time = dplyr::case_when(group=="Alcohol1"~1L,
+                            group=="Control1"~1L,
+                            group=="Alcohol2"~2L,
+                            group=="Control2"~2L),
+    group = dplyr::if_else(group=="Alcohol1"|group=="Alcohol2", 0.5, -0.5) 
+  ) %>% 
+dplyr::left_join(pre_test, by=c("id", "group"))
+
+
+ds_treatment <- as.data.frame(cbind(Alcohol1, Alcohol2)) %>%  
+  dplyr::rename(pre_test = Alcohol1, post_test = Alcohol2) %>% 
+  dplyr::mutate(group=rep(1L),
+                y=Alcohol2-Alcohol1) 
+
+ds_control<- as.data.frame(cbind(Control1, Control2)) %>% 
+  dplyr::rename(pre_test = Control1, post_test = Control2) %>% 
+  dplyr::mutate(group=rep(0L),
+                y=Control2 - Control1) 
+
+ds_example2a <- as.data.frame(rbind(ds_treatment, ds_control))
+
+
+ds_example2b<- as.data.frame(cbind(Alcohol1, Control1, Alcohol2, Control2)) %>% 
+  dplyr::mutate(
+    id = row_number(),
+    treatment_change = Alcohol2 - Alcohol1,
+    control_change   = Control2 - Control1
   )
 
 
+#example3
+Alcohol1 <- rnorm(100, mean = 250, sd = 110)
+Alcohol2 <- rnorm(100, mean = 100, sd = 110)
+Alcohol3 <- rnorm(100, mean = 90, sd = 110)
+Alcohol4 <- rnorm(100, mean = 85, sd = 110)
+
+Control1 <- rnorm(100, mean = 150, sd = 110)
+Control2 <- rnorm(100, mean = 150, sd = 110)
+Control3 <- rnorm(100, mean = 148, sd = 110)
+Control4 <- rnorm(100, mean = 145, sd = 110)
+
+ds_example3 <- as.data.frame(cbind(Alcohol1,
+                                   Alcohol2,
+                                   Alcohol3,
+                                   Alcohol4,
+                                   Control1,
+                                   Control2,
+                                   Control3,
+                                   Control4)) %>% 
+  dplyr::mutate(
+    id = row_number()
+  ) %>% 
+  tidyr::gather(group, y, 1:4) %>% 
+  dplyr::mutate(
+    time = dplyr::case_when(group=="Alcohol1"~1L,
+                            group=="Control1"~1L,
+                            group=="Alcohol2"~2L,
+                            group=="Control2"~2L),
+    group = dplyr::if_else(group=="Alcohol1"|group=="Alcohol2", 0.5, -0.5) 
+  )
 
 #----analysis--------------------------------------------------------
-#example1:
+#example1: two independent groups
 psych::describe.by(ds_example1$y, group = ds_example1$group)
 res_exa1<-glm(y~group, data=ds_example1)
 summary(res_exa1)
@@ -74,5 +143,67 @@ a<-var(ds_example1$y[ds_example1$group==1L])
 b<-var(ds_example1$y[ds_example1$group==0L])
 pool_sd<- ((a+b)/2)^0.5
 113.4/pool_sd
+
+
+
+
+#example2: two groups with pre-post designs
+psych::describe.by(ds_example2, group = c("group", "time"))
+#step1:
+res_exa2<-glm(y~group, data=ds_example2)
+#res_exa2<-lmer(y~group+1|id, data=ds_example2)
+summary(res_exa2)
+sd(resid(res_exa2)) #-->128.4534
+
+res_exa2a<-glm(post_test~group, data=ds_example2a)
+sd(resid(res_exa2a)) #--118.320
+
+#res_exa2<-glm(y~time+group, data=ds_example2)
+res_exa22<-glm(y~pre_test+group, data=ds_example2)
+summary(res_exa22)
+-33.36087/128.4534
+-0.2597118
+
+
+res_exa22a<-glm(y~time+group+time*group, data=ds_example2)
+summary(res_exa22a)
+
+-154.62/128.4534
+-1.204
+
+
+treatment_pre<- ds_example2 %>% dplyr::filter(group==1L) %>% dplyr::filter(time==1L)
+treatment_post<- ds_example2 %>% dplyr::filter(group==1L) %>% dplyr::filter(time==2L)
+control_pre <- ds_example2 %>% dplyr::filter(group==0L) %>% dplyr::filter(time==1L)
+control_post <- ds_example2 %>% dplyr::filter(group==0L) %>% dplyr::filter(time==2L)
+
+mean(treatment_pre$y)
+treat_pre_sd<-sd(treatment_pre$y)
+mean(treatment_post$y)
+
+mean(control_pre$y)
+control_pre_sd<-sd(control_pre$y)
+mean(control_post$y)
+
+
+treat_change_mean <- mean(ds_example2b$treatment_change) #-157.703
+treat_change_sd <- sd(ds_example2b$treatment_change) #157.166
+
+control_change_mean<-mean(ds_example2b$control_change) #-1.109
+control_change_sd<-sd(ds_example2b$control_change)#148.420
+
+
+#d <- (treat_change_mean/treat_change_sd) - (control_change_mean/control_change_sd)
+d2 <- (treat_change_mean/treat_pre_sd) - (control_change_mean/control_pre_sd)
+
+#example 3
+
+
+
+
+
+
+
 #-----save------------------
 write.table(ds_example1, "./example1.dat", row.names = F)
+write.table(ds_example2a, "./example2a.dat", row.names = F, col.names = F)

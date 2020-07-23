@@ -1,0 +1,48 @@
+MONTECARLO: NAMES ARE y1-y4 x;
+CUTPOINTS = x (0);
+NOBSERVATIONS = 250;
+NREPS = 10000;
+SEED = 53487;
+CLASSES = C(1);
+GENCLASSES = C(1);
+ANALYSIS: TYPE = MIXTURE;
+ESTIMATOR = ML;
+MODEL MONTECARLO:
+%OVERALL%
+[x@0]; x@1;
+i BY y1-y4@1;
+s BY y1@-3 y2@-2 y3@-1 y4@0;
+[y1-y4@0];
+[i*0 s*.2];
+i*.25;
+s*.09;
+i WITH s*0;
+y1-y4*.5;
+i ON x*.3;
+s ON x*.1;
+
+%C#1%
+[i*0 s*.2];
+MODEL:
+%OVERALL%
+i BY y1-y4@1;
+s BY y1@-3 y2@-2 y3@-1 y4@0;
+[y1-y4@0];
+[i*0 s*.2];
+i*.25;
+s*.09;
+i WITH s*0;
+y1-y4*.5;
+i ON x*.3;
+s ON x*.1;
+
+%C#1%
+[i*0 s*.2];
+s on x*.1(b);
+i(v1);
+y1-y4(r1-r4);
+
+MODEL CONSTRAINT:
+new(d*.3464);
+d = (b*3)/sqrt(v1 + r1/4 + r2/4 + r3/4 + r4/4);
+OUTPUT: TECH9;
