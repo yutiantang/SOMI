@@ -11,8 +11,8 @@ require(dplyr, quietly = TRUE)
 require(lubridate, quietly= TRUE)
 require(utils, quietly = TRUE)
 require(readr, quietly = TRUE)
-
-
+require(effectsize, quietly = TRUE)
+require(ANOVAreplication, quietly = TRUE)
 
 
 
@@ -166,6 +166,27 @@ ds_example4 <- ds_example1 %>%
   ) %>% 
   dplyr::ungroup()
 
+
+#example5: three groups without time
+ds_example5 <- ds_example3 <- as.data.frame(cbind(Alcohol1,
+                                                  Alcohol2,
+                                                  Control4)) %>% 
+dplyr::rename(TA = Alcohol1,
+              TB = Alcohol2,
+              control = Control4) %>% 
+  tidyr::gather(group, y, 1:3) %>% 
+  dplyr::mutate(
+    group = as.factor(group)
+  )
+
+ds_example5b <- ds_example3 <- as.data.frame(cbind(Alcohol1,
+                                                  Alcohol2,
+                                                  Control4)) %>% 
+  dplyr::rename(TA = Alcohol1,
+                TB = Alcohol2,
+                control = Control4)
+
+
 #----analysis--------------------------------------------------------
 #example1: two independent groups
 psych::describe.by(ds_example1$y, group = ds_example1$group)
@@ -268,6 +289,48 @@ sd(example_feingold$T1[example_feingold$Tx==-0.5])
 sd(example3b$y[example3b$group==0.5])
 sd(example3b$y[example3b$group==-0.5])
 sd(example3b$y)
+
+
+
+#example 4;
+psych::describe.by(ds_example4, group = c("group", "sex"))
+res_exa4 <- glm(y~group+sex+group*sex, data = ds_example4)
+summary(res_exa4)
+
+
+mean(ds_example4$y[ds_example4$group==1])
+mean(ds_example4$y[ds_example4$group==0])
+group_diff<-243.5568-130.1745
+sd<-sd(resid(res_exa4))
+
+
+
+#example 5:
+psych::describe.by(ds_example5$y, group = ds_example5$group)
+
+ds_example5$group.f = factor(ds_example5$group, labels=c("TA", "TB", "control"))
+
+contrast_matrix <- matrix(c(1/2, -1/2, 0, 1/3, 1/3, -2/3), ncol = 2)
+contrasts(ds_example5$group.f)<-contrast_matrix
+
+res_exa5 <- glm(y~group.f, data=ds_example5)
+res_exa5b <- glm(y~group, data=ds_example5)
+
+
+summary(res_exa5)
+summary(res_exa5b)
+
+
+
+effectsize::sd_pooled(y~group, data = ds_example5)
+sd <- ((109.32^2+113.21^2+103.37^2)/3)^0.5
+sd <- sd(resid(res_exa5))
+d <- ((259.55+113.72)/2-149.51)/sd
+d <-90.813/sd
+
+var(ds_example5b$TA)
+
+
 #-----save------------------
 write.table(ds_example1, "./example1.dat", row.names = F)
 write.table(ds_example2a, "./example2a.dat", row.names = F, col.names = F)
