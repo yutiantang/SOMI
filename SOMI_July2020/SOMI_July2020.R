@@ -20,6 +20,7 @@ require(readr, quietly = TRUE)
 #use example from example 6.10, https://www.statmodel.com/usersguide/chapter6.shtml
 #variable names:  y11-y14 x1 x2 a31-a34;
 example <- read.table("./ex6.10.dat", header=FALSE)
+example_feingold <- read.csv(file = "./example_Feingold2009.csv")
 
 # ---------tweak-data --------------------------------------------------------------
 example <- example %>% 
@@ -34,6 +35,20 @@ example <- example %>%
     a32 = V8,
     a33 = V9,
     a34 = V10
+  )
+
+
+#change example_feingold from wide to long format
+#group = -0.5 is control, 0.5 is treatment
+example3a <- example_feingold %>% 
+  dplyr::select(-T4_T1) %>% 
+  dplyr::rename(group = Tx) %>% 
+  tidyr::gather("time", "y",-id, -group) %>% 
+  dplyr::mutate(
+    time = recode(time, "T1" =1L,
+                        "T2" =2L,
+                        "T3" =3L,
+                        "T4" =4L)
   )
 
 
@@ -122,14 +137,34 @@ ds_example3 <- as.data.frame(cbind(Alcohol1,
   dplyr::mutate(
     id = row_number()
   ) %>% 
-  tidyr::gather(group, y, 1:4) %>% 
+  tidyr::gather(group, y, 1:8) %>% 
   dplyr::mutate(
     time = dplyr::case_when(group=="Alcohol1"~1L,
                             group=="Control1"~1L,
+                            
                             group=="Alcohol2"~2L,
-                            group=="Control2"~2L),
-    group = dplyr::if_else(group=="Alcohol1"|group=="Alcohol2", 0.5, -0.5) 
+                            group=="Control2"~2L,
+                            
+                            group=="Alcohol3"~3L,
+                            group=="Control3"~3L,
+                            
+                            group=="Alcohol4"~4L,
+                            group=="Control4"~4L),
+    group = dplyr::case_when(group=="Alcohol1"~0.5,
+                             group=="Alcohol2"~0.5,
+                             group=="Alcohol3"~0.5,
+                             group=="Alcohol4"~0.5,
+                             TRUE~-0.5)
   )
+
+
+#example4 adding sex for two independent group without time
+ds_example4 <- ds_example1 %>% 
+  dplyr::group_by(group) %>% 
+  dplyr::mutate(
+    sex = dplyr::if_else(y>=200, 1L, 0L)
+  ) %>% 
+  dplyr::ungroup()
 
 #----analysis--------------------------------------------------------
 #example1: two independent groups
@@ -196,14 +231,43 @@ control_change_sd<-sd(ds_example2b$control_change)#148.420
 #d <- (treat_change_mean/treat_change_sd) - (control_change_mean/control_change_sd)
 d2 <- (treat_change_mean/treat_pre_sd) - (control_change_mean/control_pre_sd)
 
+
+
+
 #example 3
+example3b<- example3a %>% 
+  dplyr::mutate(
+    time2 = dplyr::case_when(time==1L~-3L,
+                             time==2L~-1L,
+                             time==3L~1L,
+                             time==4L~3L)
+  )
+#res_exa3a <- lmer(y~group*time2+1|time2, data = example3b)
 
 
+res_exa3a <- lmer(y~time2*group+1|group, data = example3b)
 
 
+1.116590+1.144176 +0.490630+1.504155+0.004354
+
+res_exa3b <- glm(y~group*time2, data = example3b)
+res_exa3a <- glm(y~as.factor(group), data = example3b)
+summary(res_exa3b)
 
 
+sd(residuals.glm(res_exa3b))
 
+
+sd(resid(res_exa3b))
+summary(res_exa3b)
+
+sd(example_feingold$T1[example_feingold$Tx==0.5])
+sd(example_feingold$T1[example_feingold$Tx==-0.5])
+
+
+sd(example3b$y[example3b$group==0.5])
+sd(example3b$y[example3b$group==-0.5])
+sd(example3b$y)
 #-----save------------------
 write.table(ds_example1, "./example1.dat", row.names = F)
 write.table(ds_example2a, "./example2a.dat", row.names = F, col.names = F)
