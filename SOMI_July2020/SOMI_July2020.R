@@ -13,8 +13,8 @@ require(utils, quietly = TRUE)
 require(readr, quietly = TRUE)
 require(effectsize, quietly = TRUE)
 require(ANOVAreplication, quietly = TRUE)
-
-
+require(reghelper, quietly = TRUE)
+require(emmeans, quietly = TRUE)
 
 #-----------load-data-------------------------------------------------------------------
 #use example from example 6.10, https://www.statmodel.com/usersguide/chapter6.shtml
@@ -162,7 +162,7 @@ ds_example3 <- as.data.frame(cbind(Alcohol1,
 ds_example4 <- ds_example1 %>% 
   dplyr::group_by(group) %>% 
   dplyr::mutate(
-    sex = dplyr::if_else(y>=200, 1L, 0L)
+    sex = dplyr::if_else(y>=300, "0.5", "-0.5")
   ) %>% 
   dplyr::ungroup()
 
@@ -292,10 +292,20 @@ sd(example3b$y)
 
 
 
-#example 4;
+#example 4; 
 psych::describe.by(ds_example4, group = c("group", "sex"))
 res_exa4 <- glm(y~group+sex+group*sex, data = ds_example4)
 summary(res_exa4)
+sd(residuals.glm(res_exa4))
+
+ds_example4$group2 <- relevel(as.factor(ds_example4$group), ref="0")
+ds_example4$sex2 <- relevel(as.factor(ds_example4$sex), ref="0.5")
+res_exa4b <- glm(y~group2*sex2, data = ds_example4)
+summary(res_exa4b)
+sd(residuals.glm(res_exa4b))
+#calculate simple effect 
+emcatcat <- emmeans::emmeans(res_exa4b, ~group2*sex2)
+
 
 
 mean(ds_example4$y[ds_example4$group==1])
@@ -304,6 +314,12 @@ group_diff<-243.5568-130.1745
 sd<-sd(resid(res_exa4))
 
 
+female <- 5.45+0.5*72.39
+male<- 5.45-0.5*72.39
+#simple_slopes(res_exa4, levels = list(group=c(0, 1, 'sstest'), sex=c(1, 0, 'sstest')))
+
+77.844-0.5*72.394
+77.844+0.5*72.394
 
 #example 5:
 psych::describe.by(ds_example5$y, group = ds_example5$group)
