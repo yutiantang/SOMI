@@ -187,6 +187,16 @@ ds_example5b <- ds_example3 <- as.data.frame(cbind(Alcohol1,
                 control = Control4)
 
 
+
+
+
+#example6: 
+ds_example6 <-ds_example3 %>% 
+  dplyr::mutate(
+    sex = dplyr::if_else(y>=400, "female", "male")
+  )
+
+
 #----analysis--------------------------------------------------------
 #example1: two independent groups
 psych::describe.by(ds_example1$y, group = ds_example1$group)
@@ -316,6 +326,10 @@ sd<-sd(resid(res_exa4))
 
 female <- 5.45+0.5*72.39
 male<- 5.45-0.5*72.39
+
+female/sd
+male/sd
+
 #simple_slopes(res_exa4, levels = list(group=c(0, 1, 'sstest'), sex=c(1, 0, 'sstest')))
 
 77.844-0.5*72.394
@@ -346,6 +360,11 @@ d <-90.813/sd
 
 var(ds_example5b$TA)
 
+
+
+#example 6:
+res_exa6 <- glm(y~group+sex+time+group*sex+group*time+time*sex, data = ds_example6)
+summary(res_exa6)
 
 #-----save------------------
 write.table(ds_example1, "./example1.dat", row.names = F)
