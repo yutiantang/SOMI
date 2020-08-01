@@ -162,7 +162,8 @@ ds_example3 <- as.data.frame(cbind(Alcohol1,
 ds_example4 <- ds_example1 %>% 
   dplyr::group_by(group) %>% 
   dplyr::mutate(
-    sex = dplyr::if_else(y>=300, "0.5", "-0.5")
+    sex   = as.factor(dplyr::if_else(y>=300, "0.5", "-0.5")),
+    group = as.factor(dplyr::if_else(group==1L, "0.5", "-0.5"))
   ) %>% 
   dplyr::ungroup()
 
@@ -179,7 +180,7 @@ dplyr::rename(TA = Alcohol1,
     group = as.factor(group)
   )
 
-ds_example5b <- ds_example3 <- as.data.frame(cbind(Alcohol1,
+ds_example5b <- as.data.frame(cbind(Alcohol1,
                                                   Alcohol2,
                                                   Control4)) %>% 
   dplyr::rename(TA = Alcohol1,
@@ -191,12 +192,49 @@ ds_example5b <- ds_example3 <- as.data.frame(cbind(Alcohol1,
 
 
 #example6: 
-ds_example6 <-ds_example3 %>% 
-  dplyr::mutate(
-    sex = as.factor(dplyr::if_else(y>=400, "female", "male")),
-    group = as.factor(group)
-  )
 
+Alcohol1a <- rnorm(100, mean = 350, sd = 110)
+Alcohol2a <- rnorm(100, mean = 100, sd = 85)
+Alcohol3a <- rnorm(100, mean = 90, sd = 100)
+Alcohol4a <- rnorm(100, mean = 85, sd = 160)
+
+Control1a <- rnorm(100, mean = 350, sd = 110)
+Control2a <- rnorm(100, mean = 300, sd = 100)
+Control3a <- rnorm(100, mean = 312, sd = 105)
+Control4a <- rnorm(100, mean = 296, sd = 98)
+
+ds_example6 <- as.data.frame(cbind(Alcohol1a,
+                                   Alcohol2a,
+                                   Alcohol3a,
+                                   Alcohol4a,
+                                   Control1a,
+                                   Control2a,
+                                   Control3a,
+                                   Control4a)) %>% 
+  dplyr::mutate(
+    id = row_number(),
+    sex= dplyr::if_else(Alcohol1a >=300 | Control1a>=400, 1L, 0L)
+  ) %>% 
+  tidyr::gather(group, y, 1:8) %>% 
+  dplyr::mutate(
+    time = dplyr::case_when(group=="Alcohol1a"~1L,
+                            group=="Control1a"~1L,
+                            
+                            group=="Alcohol2a"~2L,
+                            group=="Control2a"~2L,
+                            
+                            group=="Alcohol3a"~3L,
+                            group=="Control3a"~3L,
+                            
+                            group=="Alcohol4a"~4L,
+                            group=="Control4a"~4L),
+    group = dplyr::case_when(group=="Alcohol1a"~0.5,
+                             group=="Alcohol2a"~0.5,
+                             group=="Alcohol3a"~0.5,
+                             group=="Alcohol4a"~0.5,
+                             TRUE~-0.5),
+   group = as.factor(group)
+  )
 
 #----analysis--------------------------------------------------------
 #example1: two independent groups
@@ -281,8 +319,10 @@ res_exa3a <- lmer(y~time2*group+1|group, data = example3b)
 
 
 1.116590+1.144176 +0.490630+1.504155+0.004354
-
+res_exa3a <- glm(y~time*group, data = example3b)
+summary(res_exa3a)
 res_exa3b <- glm(y~group*time2, data = example3b)
+
 res_exa3a <- glm(y~as.factor(group), data = example3b)
 summary(res_exa3b)
 
@@ -304,23 +344,27 @@ sd(example3b$y)
 
 
 #example 4; 
+
 psych::describe.by(ds_example4, group = c("group", "sex"))
 res_exa4 <- glm(y~group+sex+group*sex, data = ds_example4)
 summary(res_exa4)
-sd(residuals.glm(res_exa4))
+sd<-sd(residuals.glm(res_exa4))
 
-ds_example4$group2 <- relevel(as.factor(ds_example4$group), ref="0")
+
+ds_example4$group2 <- relevel(as.factor(ds_example4$group), ref="0.5")
 ds_example4$sex2 <- relevel(as.factor(ds_example4$sex), ref="0.5")
 res_exa4b <- glm(y~group2*sex2, data = ds_example4)
 summary(res_exa4b)
 sd(residuals.glm(res_exa4b))
 #calculate simple effect 
 emcatcat <- emmeans::emmeans(res_exa4b, ~group2*sex2)
+dm<-54.044-0.5*(-28.95 )
+dw<-54.044+0.5*(-28.95 )
+dm/sd
+dw/sd
 
-
-
-mean(ds_example4$y[ds_example4$group==1])
-mean(ds_example4$y[ds_example4$group==0])
+mean(ds_example4$y[ds_example4$group2==0.5])
+mean(ds_example4$y[ds_example4$group2==-0.5])
 group_diff<-243.5568-130.1745
 sd<-sd(resid(res_exa4))
 
@@ -364,9 +408,30 @@ var(ds_example5b$TA)
 
 
 #example 6:
-res_exa6 <- glm(y~group+sex+time+group*sex+group*time+time*sex, data = ds_example6)
+psych::describe.by(ds_example6, group = c("group", "sex", "time"))
+res_exa6 <- glm(y~group+sex+time+group*sex+group*time+time*sex+group*time*sex, data = ds_example6)
 summary(res_exa6)
 simple_slopes(res_exa6)
+sd<-sd(resid(res_exa6))
+
+118.5693*3/46.870
+
+
+ds_example6a <- ds_example6 %>% 
+  dplyr::filter(sex==1L)
+
+ds_example6b <- ds_example6 %>% 
+  dplyr::filter(sex==0L)
+
+res_exa6a <- glm(y~time*group, data = ds_example6a)
+summary(res_exa6a)
+sd_6a<-sd(resid(res_exa6a))
+-78.135*3/sd_6a
+
+res_exa6b <- glm(y~time*group, data = ds_example6b)
+summary(res_exa6b)
+sd_6b<-sd(resid(res_exa6b))
+-31.265*3/sd_6b
 
 #-----save------------------
 write.table(ds_example1, "./example1.dat", row.names = F, col.names = F)
