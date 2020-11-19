@@ -42,6 +42,7 @@ require(mitml, quietly = TRUE)
 library(MachineShop)
 library(Amelia)
 library(merTools)
+library(Zelig)
 require(psfmi, quietly = TRUE)
 require(ggalluvial, quietly = TRUE)
 
@@ -50,7 +51,8 @@ require(ggalluvial, quietly = TRUE)
 
 
 #-----------load-data-------------------------------------------------------------------
-ds <- haven::read_sav("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/Galsky_CATS.sav")
+ds_old <- haven::read_sav("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/Galsky_CATS.sav")
+ds <- haven::read_sav("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/Galsky soper working data set spss version 04 12 2020_b.sav")
 
 psc17 <- read_excel("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/old/PSC17.xlsx")
 
@@ -324,16 +326,16 @@ res_dose1<- summary(pool(fit_dose))
 #res_dose0 <- summary(pool(fit_dose0))
 
 fit_dose2 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
-res_dose2 <- summary(pool(fit_dose2))
+res_dose2 <- summary(pool(fit_dose2)) #corresponding to step1 
 
 fit_dose3 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
-res_dose3 <- summary(pool(fit_dose3))
+res_dose3 <- summary(pool(fit_dose3))#corresponding to step2
 
 fit_dose4 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Exp_CATS_Total + psc17_total)), family="binomial")
-res_dose4 <- summary(pool(fit_dose4))
+res_dose4 <- summary(pool(fit_dose4)) #corresponding to step3
 
 fit_dose5 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + psc17_total)), family="binomial")
-res_dose5 <- summary(pool(fit_dose5))
+res_dose5 <- summary(pool(fit_dose5), conf.int = TRUE, conf.level = 0.95) #corresponding to step4
 
 #fit_dose5b <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + psc17_total + Age * psc17_total)), family="binomial")
 #res_dose5b <- summary(pool(fit_dose5b))
@@ -343,11 +345,11 @@ res_dose5 <- summary(pool(fit_dose5))
 
 
 
-glm.mids(ds_data_list, )
-D1(fit_dose3, fit_dose2)
-D1(fit_dose4, fit_dose3)
-D1(fit_dose5, fit_dose4)
-D1(fit_dose6, fit_dose5)
+#glm.mids(ds_data_list, )
+#D1(fit_dose3, fit_dose2)
+#D1(fit_dose4, fit_dose3)
+#D1(fit_dose5, fit_dose4)
+#D1(fit_dose6, fit_dose5)
 
 
 
@@ -359,7 +361,7 @@ ds_imp3<-ds_imp1 %>%
   dplyr::filter(.imp == 0L)
 
 fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
-            fm=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
+                        formula=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
             names.var=list("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"))
 
 #mivalext_lr(data.val=ds_imp2, nimp=10, impvar=".imp", Outcome="dose_cate",
@@ -371,10 +373,12 @@ fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
 
 
 pool_lr <- psfmi_lr(data=ds_imp2, nimp=10, impvar=".imp", 
+                    formula=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
                     Outcome="dose_cate",
-                    predictors=c("Age", "Gender", "cats_baseline", "Exp_CATS_Total", "psc17_total"), 
+                    cat.predictors=c("Gender"),
+                    #predictors=c("Age", "cats_baseline", "Exp_CATS_Total", "psc17_total"), 
                     #keep.predictors = "Smoking",
-                    p.crit = 0.05, method="D1")
+                    p.crit = 0.05, method="D1", direction="BW")
 
 pool_lr$RR_Model
 
@@ -390,7 +394,7 @@ fit_dose3 <- as.mira(fit_dose3)
 fit_dose4 <- as.mira(fit_dose4)
 fit_dose5 <- as.mira(fit_dose5)
 
-
+#the following r square is for calculating r square from imputation of logistic regression
 pool.r.squared(fit_dose2)
 pool.r.squared(fit_dose3)
 pool.r.squared(fit_dose4)
@@ -402,7 +406,7 @@ pool.r.squared(fit_dose5)
 
 
 bdfile <- system.file("extdata", "vcf1a.bdose", package = "BinaryDosage")
-bdinfo <- getbdinfo(bdfiles = bdfile)
+bdinfo <- getbdinfo(bdfiles = bdfile) #use library(BinaryDosage)
 snp1 <- getsnp(bdinfo = bdinfo, 1, dosageonly = FALSE)
 rsq <- BinaryDosage:::getrsq(snp1$dosage, p2 = snp1$p2)
 
@@ -489,7 +493,10 @@ fit3<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + cats_ba
 fit4<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
            )
 
-fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(time|ID))),
+fit5b <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(time|ID))),
+) #add on Oct 2020
+
+fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID))),
 )
 
 #res1a <- summary(lmer_pool(fit1_fix))
@@ -500,7 +507,9 @@ res1 <- summary(lmer_pool(fit1))
 res2 <- summary(lmer_pool(fit2))
 res3 <- summary(lmer_pool(fit3))
 res4 <- summary(lmer_pool(fit4))
-res5 <- summary(lmer_pool(fit5))
+res5 <- summary(lmer_pool(fit5)) 
+#res5b <- summary(lmer_pool(fit5b))#this one has the random slope but not converged. 
+
 #res6 <- summary(lmer_pool(fit6))
 
 #pool.compare(fit1, fit1b, method = "wald") #the null hypothesis is tested that the extra parameters are all zero.
