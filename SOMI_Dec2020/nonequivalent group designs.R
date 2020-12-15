@@ -3,7 +3,10 @@
 #Edit Date: 12/11/2020
 #Author: Yutian T. Thompson
 
-rm()
+rm(list=ls(all=TRUE))
+# ---- load-sources -----------------------------------------------------------------
+
+
 
 #---load-package---------------
 library(dplyr)
@@ -11,10 +14,13 @@ library(AER)
 library(psych)
 library(tidyr)
 library(ggplot2)
+library(ggpubr)
 library(parallel)
 library(lavaan)
 library(AER)
 library(brms)
+library(rstatix)
+library(Hmisc)
 
 #---load-data-----------------
 data("CigarettesSW")  # a real data
@@ -124,9 +130,29 @@ ds_use_dpp <- dpp %>%
 #instrument: salestax
 #T: year (1985 vs 1995)
 
+#---descriptive---------------------
+ds_dpp_descriptive <- ds_use_dpp %>%
+  dplyr::select(y, pre) %>%
+  psych::describe()
+
+
+TabularManifest::histogram_discrete(ds_use_dpp, "treatment")
+TabularManifest::histogram_discrete(ds_use_dpp, "gender")
+
+cor(ds_use_dpp$gender, ds_use_dpp$pre, use = "everything")
+
+
+res2 <- ds_use_dpp %>%
+  dplyr::select(pre, y, gender, treatment) %>%
+  cor(., use = "na.or.complete")
+res2
+cor.test(ds_use_dpp$gender, ds_use_dpp$pre)
+cor.test(ds_use_dpp$gender, ds_use_dpp$y)
+
+
 #---analysis-------------------------
 #The following code is to fit the two-stage least square method in a wrong way
-cig_s1 <- glm(year ~ salestax, data = ds_use, family = "binomial")
+cig_s1 <- glm(year ~ salestax, data = ds_use)
 lcigp_pred <- cig_s1$fitted.values
 
 coeftest(cig_s1, vcov = vcovHC, type = "HC1")
@@ -142,23 +168,61 @@ coeftest(cig_ivreg, vcov = vcovHC, type = "HC1") #change is on the se and p valu
 
 
 
+
 #For the fake data
-OLS <- lm(y ~ session + pre, data = dpp)
-summary(OLS)
-## Naïve OLS (tx only)
-naive <- dpp %>%
-  filter(treatment == 1) %>%
-  lm(y ~ session + pre, data = .)
-summary(naive)
+#ANCOVA
+#OLS <- lm(post ~ session + pre + treatment, data = dpp)
+#summary(OLS)
+### Naïve OLS (tx only)
+#naive <- dpp %>%
+#  #filter(treatment == 1) %>%
+#  lm(y ~ session + pre, data = .)
+#summary(naive)
 
 naive2 <- ds_use_dpp %>%
-  #filter(treatment == 1) %>%
-  lm(y ~ gender + treatment +pre, data = .)
+  lm(y ~  gender +pre+treatment, data = .)
 summary(naive2)
 
+#naive2 <- ds_use_dpp %>%
+#anova_test(y ~ gender + treatment+pre)
+#get_anova_table(naive2)
+
+#if you want to check about the homogeneity assumption, need to include the interaction
+naive3 <- ds_use_dpp %>%
+  lm(y ~  gender +pre+treatment+pre*treatment, data = .)
+summary(naive3)
 
 
 
-## Two-step manual
 IV <- ivreg(y ~ treatment + pre | gender + pre, data = ds_use_dpp)
-summary(IV)
+summary(IV, diagnostics=T)
+
+
+
+#check if instrumental variable weak. Borrow the first stage regression
+
+iv_x_regression <-  glm(treatment ~ gender, data = ds_use_dpp)
+summary(iv_x_regression)
+
+
+lcigp_pred <- cig_s1$fitted.values
+
+
+#--plot-----------
+ggscatter(
+  ds_use_dpp, x = "pre", y = "y",
+  color = "treatment", add = "reg.line")+
+  stat_regline_equation(
+    aes(label =  paste(..eq.label.., ..rr.label.., sep = "~~~~"), color = treatment)
+  )
+
+
+
+
+
+#---save----------
+#save the final usable data for people to practice
+ds_use_dpp_save <- ds_use_dpp %>%
+  dplyr::select(subject,id, gender, pre, post, treatment,session, hidden_confounder, y)
+
+write.csv(ds_use_dpp_save, file="C:/Users/YTHOMPSO/Documents/GitHub/SOMI/SOMI_Dec2020/practice_data.csv", row.names = F)
