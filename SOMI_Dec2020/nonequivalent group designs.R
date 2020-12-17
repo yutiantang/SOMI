@@ -2,6 +2,7 @@
 #Topic: Nonequivalent group designs
 #Edit Date: 12/11/2020
 #Author: Yutian T. Thompson
+#note: This repo only include the instrumental variable and ANCOVA
 
 rm(list=ls(all=TRUE))
 # ---- load-sources -----------------------------------------------------------------
@@ -25,7 +26,7 @@ library(Hmisc)
 #---load-data-----------------
 data("CigarettesSW")  # a real data
 
-
+#I generated
 sp <- study_parameters(n1 = 11,
                        n2 = 100,
                        T_end = 10,
@@ -201,11 +202,8 @@ summary(IV, diagnostics=T)
 
 #check if instrumental variable weak. Borrow the first stage regression
 
-iv_x_regression <-  glm(treatment ~ gender, data = ds_use_dpp)
+iv_x_regression <-  glm(treatment ~ gender+pre, data = ds_use_dpp)
 summary(iv_x_regression)
-
-
-lcigp_pred <- cig_s1$fitted.values
 
 
 #--plot-----------
