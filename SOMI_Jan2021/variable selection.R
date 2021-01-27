@@ -18,6 +18,7 @@ library(MASS)
 library(glmnet)
 library(grDevices)
 library(Matrix)
+library(lmridge)
 
 # ---- declare-globals -----------------
 
@@ -109,6 +110,12 @@ ridgemod <- lm.ridge(y ~ ., data=data.frame(X), lambda=lamseq)
 ### also fit the ridge using k-fold
 ridgemod2 <- cv.glmnet(X, y, type.measure = "mse", foldid=foldid, alpha=0)
 ridge_lambda_min2 <- ridgemod2$lambda.min #1.204
+ridgecoef.min2 <- coef(ridgemod2, s="lambda.min") 
+
+#if you really want to get the inference infor (p value), you can use the following function:
+#But I do not recommend. 
+ridgemod3<-linearRidge(y ~ ., data=data.frame(X))
+summary(ridgemod3)
 
 ### plot the ridge trace (to ensure we found minimum)
 #quartz(width=8,height=4)
@@ -116,7 +123,7 @@ plot(ridgemod$lambda, ridgemod$GCV, xlab="Lambda", ylab="GCV")
 lines(rep(lamseq[which.min(ridgemod$GCV)],2), range(ridgemod$GCV), lty=3)
 
 
-#plot l-fold results
+#plot k-fold results
 plot(ridgemod2)
 
 ### find lambda that minimizes GCV
@@ -127,13 +134,15 @@ gcvmin <- which.min(ridgemod$GCV)
 ridgecoef.min <- coef(ridgemod)[gcvmin,]
 
 
-#save the coefficients to compare with other methods.
+#save the ridge coefficients to compare with other methods.
 ridge_coeff <-ridgecoef.min %>% 
   as.data.frame() %>% 
   setDT(keep.rownames = TRUE) 
 
 
 #write_csv(ridge_coeff, file = "C:/Users/YTHOMPSO/Dropbox/Work/Teaching/2021SOMI_1/example_ridge.csv")
+
+
 
 
 #--------------ELASTIC NET REGRESSION------------------
@@ -151,13 +160,13 @@ for(k in 1:length(alphaseq)){
 
 ### plot alphaseq vs CV-MSE
 #quartz(width=8,height=8)
-par(mfrow=c(2,1))
-mincv = sapply(cvlist, function(x) min(x$cvm))
+#par(mfrow=c(2,1))
+mincv <- sapply(cvlist, function(x) min(x$cvm))
 plot(alphaseq, mincv, xlab="Alpha", ylab="Mean-Squared Error", type="b")
 
 ### get the minimum
-minid = which.min(mincv)
-minid
+minid <- which.min(mincv)
+minid #the second the alpha is corresponding to the min mse
 alphaseq[minid]
 
 ### plot results for minimum
@@ -167,3 +176,15 @@ plot(cvlist[[minid]])
 ### get the coefficients
 enetcoef.min = coef(cvlist[[minid]], s="lambda.min")
 enetcoef.1se = coef(cvlist[[minid]], s="lambda.1se")
+
+
+
+# vars_en <-enetcoef.min %>% 
+#   #coef(cvlasso, lambda = cvlasso$lambda.min) %>% 
+#   as.matrix() %>% 
+#   as.data.frame() %>%
+#   setDT(keep.rownames = TRUE) %>% 
+#   rename(name = rn, coeff = `1`) %>% 
+#   dplyr::filter(coeff != 0)
+
+
