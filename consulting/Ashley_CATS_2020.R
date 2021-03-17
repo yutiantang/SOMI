@@ -45,6 +45,7 @@ library(merTools)
 library(Zelig)
 require(psfmi, quietly = TRUE)
 require(ggalluvial, quietly = TRUE)
+require(GLMMadaptive, quietly = TRUE) #devtools::install_github("drizopoulos/GLMMadaptive")
 
 # ---- declare-globals ---------------------------------------------------------
 
@@ -54,8 +55,11 @@ require(ggalluvial, quietly = TRUE)
 ds_old <- haven::read_sav("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/Galsky_CATS.sav")
 ds <- haven::read_sav("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/Galsky soper working data set spss version 04 12 2020_b.sav")
 
-psc17 <- read_excel("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/old/PSC17.xlsx")
+#psc17 has multiple sheet, please use the third one not the first two!!!
+psc17_wrong <- read_excel("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/old/PSC17.xlsx")
 
+psc17 <- read_excel("S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/old/PSC17.xlsx",
+                    sheet = "Sheet5")
 
 
 # ---- tweak-data --------------------------------------------------------------
@@ -64,6 +68,12 @@ CATS <- c("CATS_Time1_Total", "CATS_Time2_Total", "CATS_Time3_Total", "CATS_Time
           "CATS_Time6_Total", "CATS_Time7_Total", "CATS_Time8_Total", "CATS_Time9_Total", "CATS_Time10_Total")
 cats_last_six <- c("CATS_Time4_Total", "CATS_Time5_Total", "CATS_Time6_Total", "CATS_Time7_Total",
                    "CATS_Time8_Total", "CATS_Time9_Total", "CATS_Time10_Total")
+
+psc17<-psc17 %>%
+  dplyr::rename(
+    record_id = ID,
+    psc17_total = PSC17,
+  )
 
 use<- ds %>%
   dplyr::select(ID, Age, Gender, Exp_CATS_Total, Date_Referred, Intake_Date,
@@ -106,20 +116,34 @@ ds_use2 <- use %>%
     rep =  as.factor(rep)
   )
 
-ds_use0 <- ds %>% 
+#ds_use3 is made for not imputing psc-17, because this variabe brings us too much trouble
+ds_use3 <- use %>%
+  dplyr::mutate(
+    psc17_total = as.numeric(psc17_total),
+    psc17_total = as.integer(sprintf("%2.0f", dplyr::if_else(is.na(psc17_total), mean(psc17_total, na.rm=T), psc17_total) )),
+    cats_baseline = wave_1
+    ) %>%
+  dplyr::select(ID, Age, Gender, Exp_CATS_Total, dose, dose_cate, psc17_total, cats_baseline, wave_1, wave_2, wave_3, wave_4) %>%
+  tidyr::gather("rep", "CATS", -ID, -Age, -Gender, -Exp_CATS_Total, -dose, -dose_cate, -psc17_total,-cats_baseline) %>%
+  dplyr::mutate(
+    rep =  as.factor(rep)
+  )
+
+
+ds_use0 <- ds %>%
   dplyr::select(
     ID, CATS
-  ) %>% 
-  tidyr::gather("rep", "CATS", -ID) %>% 
-  dplyr::group_by(rep) %>% 
+  ) %>%
+  tidyr::gather("rep", "CATS", -ID) %>%
+  dplyr::group_by(rep) %>%
   dplyr::summarise(
     total_sample = dplyr::n(),
     non_missing = sum(!is.na(CATS)),
     missing     = sum(is.na(CATS)),
     missing_percent = paste0(sprintf("%4.2f", missing/total_sample*100), "%"),
-    nonmissing_percent = paste0(sprintf("%4.2f", non_missing/total_sample*100), "%") 
-  ) %>% 
-  dplyr::ungroup() %>% 
+    nonmissing_percent = paste0(sprintf("%4.2f", non_missing/total_sample*100), "%")
+  ) %>%
+  dplyr::ungroup() %>%
   dplyr::mutate(
     rep = dplyr::case_when(rep=="CATS_Time1_Total"~"1",
                            rep=="CATS_Time2_Total"~"2",
@@ -164,56 +188,117 @@ ggplot(ds_use0, aes(x = rep, y = non_missing, label=nonmissing_percent))+
 
 
 #use mice package to impute
-skip_imputation_vars<-c("ID", "rep", "dose", "dose_cate")
-skip_imputation_vars2<-c("ID", "rep", "dose")
+# skip_imputation_vars<-c("ID", "rep", "dose", "dose_cate")
+# skip_imputation_vars2<-c("ID", "rep", "dose")
+#March 2021, we found the new psc-17 variable, if we included in the model --> model would be nonconverged on certain inputed data
+# skip_imputation_vars3<-c("ID", "rep", "dose", "dose_cate", "psc17_total")
+skip_imputation_vars3<-c("ID", "rep")
 
-design_var_index <- which(names(ds_use) %in% skip_imputation_vars)
-nvars <- ncol(ds_use)
+
+design_var_index <- which(names(ds_use3) %in% skip_imputation_vars3)
+impute_vars3 <- setdiff(names(ds_use3), skip_imputation_vars3)
+impute_var_index3 <- which(names(ds_use3) %in% impute_vars3)
+
+nvars <- ncol(ds_use3)
 pmat <- matrix(1,nvars,nvars)
 diag(pmat) <- 0
 pmat[design_var_index,] <- 0
 pmat[,design_var_index] <- 0
-
-design_var_index2 <- which(names(ds_use) %in% skip_imputation_vars2)
-nvars2 <- ncol(ds_use2)
-pmat2 <- matrix(1,nvars2,nvars2)
-diag(pmat2) <- 0
-pmat[design_var_index2,] <- 0
-pmat[,design_var_index2] <- 0
+pmat[impute_var_index3,impute_var_index3] <- mice::quickpred(ds_use3[impute_var_index3]) #use this to minimize the loggedevents overprediction warnings
 
 
+meth <- vector()
+meth[impute_var_index3] = "pmm"
+meth[design_var_index3] = ""
 
-imputed_Data <- mice(data=ds_use , m=10, maxit = 5, seed = 123456789, predictorMatrix = pmat)#, remove.collinear=F)
-imputed_Data2 <- mice(data=ds_use2 , m=10, maxit = 5, seed = 123456789, predictorMatrix = pmat2)#, remove.collinear=F)
+imputed_Data3 <- mice::mice( ds_use3, m=10, maxit = 5, meth = meth, seed = 1127575261, predictorMatrix = pmat)#, remove.collinear=F)
+saveRDS(file="S:/CCAN/CCANResEval/Child Trauma Programs/Research/Active Projects/Retrospective Dataset/Galsky/imputed_cat_data.rds", imputed_Data3)
 
-ds_imp <- mice::complete(imputed_Data, action = "long", include = TRUE)
-ds_imp1 <- ds_imp %>% 
-  dplyr::group_by(.imp, ID) %>% 
+# design_var_index <- which(names(ds_use) %in% skip_imputation_vars)
+# nvars <- ncol(ds_use)
+# pmat <- matrix(1,nvars,nvars)
+# diag(pmat) <- 0
+# pmat[design_var_index,] <- 0
+# pmat[,design_var_index] <- 0
+#
+# design_var_index2 <- which(names(ds_use) %in% skip_imputation_vars2)
+# nvars2 <- ncol(ds_use2)
+# pmat2 <- matrix(1,nvars2,nvars2)
+# diag(pmat2) <- 0
+# pmat[design_var_index2,] <- 0
+# pmat[,design_var_index2] <- 0
+#
+# design_var_index3 <- which(names(ds_use3) %in% skip_imputation_vars3)
+# nvars3 <- ncol(ds_use3)
+# pmat3 <- matrix(1,nvars3,nvars3)
+# diag(pmat3) <- 0
+# pmat[design_var_index3,] <- 0
+# pmat[,design_var_index3] <- 0
+#
+#
+# imputed_Data <- mice(data=ds_use , m=10, maxit = 5, seed = 123456789, predictorMatrix = pmat)#, remove.collinear=F)
+# imputed_Data2 <- mice(data=ds_use2 , m=10, maxit = 5, seed = 123456789, predictorMatrix = pmat2)#, remove.collinear=F)
+# imputed_Data3 <- mice(data=ds_use3 , m=10, maxit = 5, seed = 123456789, predictorMatrix = pmat3) #this imputation is especially for psc-17 variable;
+#
+
+
+
+#the major difference of imputations based on ds_use and ds_use3 is: the baseline cat scores was calculated on the raw data
+#in ds_use3 then impute; While it was calculated in imputed data for ds_imp, which bring the model converge issue;
+#Therefore, on March 2021 analysis, we finally decided to use the ds_use3 as well as the corresponding ds_imp3 to do
+#the further analysis. Abandon the dis_imp1, ds_use.
+# ds_imp <- mice::complete(imputed_Data, action = "long", include = TRUE)
+# ds_imp1 <- ds_imp %>%
+#   dplyr::group_by(.imp, ID) %>%
+#   dplyr::mutate(
+#     CATS           = as.numeric(CATS),
+#     cat_total      = sum(CATS, na.rm = T),
+#     cats_baseline  = CATS[rep=="wave_1"],
+#
+#     time           = recode(rep, "wave_1" = 1L, "wave_2"=2L, "wave_3"=3L, "wave_4"=4L),
+#     psc17_total    = as.integer(sprintf("%2.0f", psc17_total)),
+#     delta_cats_since_baseline = cat_total - cats_baseline
+# )%>%
+#   dplyr::ungroup() %>%
+# #dplyr::select(-client_row_index)%>%
+#   dplyr::arrange(.imp, .id)
+#
+# imputed_data_mids <-  as.mids(ds_imp1)
+# ds_data_list <- miceadds::mids2datlist(imputed_data_mids)
+#~~~~~~~~ds_use imputation management end here
+
+
+
+
+## get imputed list:
+## ds_imp <- complete(imputed_Data, action = "long",include = TRUE)
+## ds_data_list <- miceadds::mids2datlist(imputed_Data)
+## ds_data_list2 <- miceadds::mids2datlist(imputed_Data2)
+
+
+#manipulate for the ds_use3 imputed data (add on March 2021)
+ds_imp3 <- mice::complete(imputed_Data3, action = "long", include = TRUE)
+ds_imp3 <- ds_imp3 %>%
+  dplyr::group_by(.imp, ID) %>%
   dplyr::mutate(
     CATS           = as.numeric(CATS),
     cat_total      = sum(CATS, na.rm = T),
-    cats_baseline  = CATS[rep=="wave_1"],
-    
-    time           = recode(rep, "wave_1" = 1, "wave_2"=2, "wave_3"=3, "wave_4"=4),
-    delta_cats_since_baseline = cat_total - cats_baseline
-)%>%
-  dplyr::ungroup() %>% 
-#dplyr::select(-client_row_index)%>%
-  dplyr::arrange(.imp, .id) 
+   # cats_baseline  = CATS[rep=="wave_1"],
 
-imputed_data_mids <-  as.mids(ds_imp1)
-ds_data_list <- miceadds::mids2datlist(imputed_data_mids)
-#get imputed list:
-#ds_imp <- complete(imputed_Data, action = "long",include = TRUE)
-#ds_data_list <- miceadds::mids2datlist(imputed_Data)
-#ds_data_list2 <- miceadds::mids2datlist(imputed_Data2)
+    time           = recode(rep, "wave_1" = 1L, "wave_2"=2L, "wave_3"=3L, "wave_4"=4L),
+    delta_cats_since_baseline = cat_total - cats_baseline
+  )%>%
+  dplyr::ungroup() %>%
+  dplyr::arrange(.imp, .id)
+
+imputed_data_mids3 <-  as.mids(ds_imp3)
+ds_data_list3 <- miceadds::mids2datlist(imputed_data_mids3)
+
 
 
 
 #--visualize------
-descriptive<-ds_use %>%
-  dplyr::filter(rep=="wave_1"
-  ) %>%
+descriptive<-use %>% #choose the time invarying variables
   dplyr::select(Age, Gender, Exp_CATS_Total, dose, psc17_total) %>%
   psych::describe() %>%
   setDT(keep.rownames = "variable") %>%
@@ -226,36 +311,36 @@ descriptive<-ds_use %>%
     skew    = sprintf("%4.3f", skew),
     kurtosis= sprintf("%4.3f", kurtosis),
     se      = sprintf("%4.3f", se),
-    missing = sprintf("%4.3f", 1-n/94)
-  ) %>% 
+    missing = sprintf("%4.3f", 1-n/75)
+  ) %>%
   dplyr::ungroup()
 
-psych::describe.by(ds_use, group = "rep") 
- 
-descriptive2<-ds_use %>%
-  dplyr::select(CATS, rep) %>% 
-  dplyr::group_by(rep) %>% 
+psych::describe.by(ds_use, group = "rep")
+
+descriptive2<-ds_use3 %>%
+  dplyr::select(CATS, rep) %>%
+  dplyr::group_by(rep) %>%
   dplyr::summarise(
     mean    = mean(CATS, na.rm=TRUE),
     sd      = sd(CATS, na.rm = TRUE),
-    #missing = sprintf("%4.3f", 1-n/94)
-  ) %>% 
-  dplyr::ungroup()
-  
-  
-descriptive3<-ds_use %>%
-  dplyr::filter(rep=="wave_1"
+    #missing = sprintf("%4.3f", 1-n/75)
   ) %>%
+  dplyr::ungroup()
+
+
+descriptive3<-use %>%
+  # dplyr::filter(rep=="wave_1"
+  # ) %>%
   dplyr::mutate(
     Gender = as.integer(Gender)
-  ) %>% 
+  ) %>%
   dplyr::summarise(
     male = sum(Gender[Gender==1L], na.rm=T),
     sample= dplyr::n(),
     female = sample - male
   )
 
-bxp1 <- ds_use %>%
+bxp1 <- ds_use3 %>%
   dplyr::select(ID, rep, CATS) %>%
   dplyr::rename(measurement = rep) %>%
   ggboxplot(x = "measurement", y = "CATS", add = "point")
@@ -326,7 +411,7 @@ res_dose1<- summary(pool(fit_dose))
 #res_dose0 <- summary(pool(fit_dose0))
 
 fit_dose2 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
-res_dose2 <- summary(pool(fit_dose2)) #corresponding to step1 
+res_dose2 <- summary(pool(fit_dose2)) #corresponding to step1
 
 fit_dose3 <- with(ds_data_list, exp=lm(formula(dose_cate ~ Age + cats_baseline+ Exp_CATS_Total + psc17_total)), family="binomial")
 res_dose3 <- summary(pool(fit_dose3))#corresponding to step2
@@ -354,10 +439,10 @@ res_dose5 <- summary(pool(fit_dose5), conf.int = TRUE, conf.level = 0.95) #corre
 
 
 #to get the R square
-ds_imp2<-ds_imp1 %>% 
+ds_imp2<-ds_imp1 %>%
   dplyr::filter(.imp != 0L)
 
-ds_imp3<-ds_imp1 %>% 
+ds_imp3<-ds_imp1 %>%
   dplyr::filter(.imp == 0L)
 
 fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
@@ -372,11 +457,11 @@ fit_dose_b<-D1_logistic(data=ds_imp2, nimp=10, impvar=".imp",
 
 
 
-pool_lr <- psfmi_lr(data=ds_imp2, nimp=10, impvar=".imp", 
+pool_lr <- psfmi_lr(data=ds_imp2, nimp=10, impvar=".imp",
                     formula=dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total,
                     Outcome="dose_cate",
                     cat.predictors=c("Gender"),
-                    #predictors=c("Age", "cats_baseline", "Exp_CATS_Total", "psc17_total"), 
+                    #predictors=c("Age", "cats_baseline", "Exp_CATS_Total", "psc17_total"),
                     #keep.predictors = "Smoking",
                     p.crit = 0.05, method="D1", direction="BW")
 
@@ -421,7 +506,7 @@ summary(fit_dose4)
 
 fit_dose4 <- with(ds_data_list, exp=zelig(formula(dose_cate ~ Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total, model = "logit", data = swiss, cite = FALSE)))
 
-#---mixed_effect------------
+#---mixed_effect1------------
 #repeate anova
 fit<-with(ds_data_list, exp = lmer(formula(CATS ~ rep + (1|ID))),
           )
@@ -455,7 +540,7 @@ mod_table1 <- mod_table%>%
 #str(pool(fit))
 #data.imputed <- pool(fit)
 #AIC(fit)
-#L_df <- mice::complete(imputed_Data,"long",include = FALSE) 
+#L_df <- mice::complete(imputed_Data,"long",include = FALSE)
 #AIC1<-c()
 #logLik1 <- c()
 #m <- max(L_df$.imp)
@@ -475,26 +560,35 @@ mod_table1 <- mod_table%>%
 #fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(time||ID)))
 #          )
 
-
+#The following models were specified for the version before March 2021 which used the wrong psc-17 variable;
 #we did not applied the random effect on the slope is main for fit5, if the random effect added, we will
 #have over-fit model and hit the error of "boundary (singular) fit: see ?isSingular"
 fit1<-with(ds_data_list, exp = lmer(formula(CATS ~ time +(1|ID)))
 )
 
+
 fit2<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID))),
          )
+#try the different package:
+# fit2b<-with(ds_data_list, exp = GLMMadaptive::mixed_model(formula(fixed = CATS ~ time + Age*time + Gender + dose+  Exp_CATS_Total + psc17_total,
+#                                                                   random = ~1|ID), family = gaussian()),
+# )
 
-#fit2b<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + dose+  Exp_CATS_Total + psc17_total+(time||ID))),
-#)
+fit3<-with(ds_data_list, exp = glmer(formula(CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID),
+                                             control=glmerControl(optimizer="Nelder_Mead",
+                                                                  coptCtrl=list(maxfun=2e10)))),
+          )
+
 
 fit3<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
-          )
+)
 
 fit4<-with(ds_data_list, exp = lmer(formula(CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
            )
 
-fit5b <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(time|ID))),
-) #add on Oct 2020
+
+# fit5b <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(time|ID))),
+# ) #add on Oct 2020, check on march 14th 2021--> not converged
 
 fit5 <- with(ds_data_list, exp = lmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID))),
 )
@@ -507,8 +601,8 @@ res1 <- summary(lmer_pool(fit1))
 res2 <- summary(lmer_pool(fit2))
 res3 <- summary(lmer_pool(fit3))
 res4 <- summary(lmer_pool(fit4))
-res5 <- summary(lmer_pool(fit5)) 
-#res5b <- summary(lmer_pool(fit5b))#this one has the random slope but not converged. 
+res5 <- summary(lmer_pool(fit5))
+#res5b <- summary(lmer_pool(fit5b))#this one has the random slope but not converged.
 
 #res6 <- summary(lmer_pool(fit6))
 
@@ -524,35 +618,9 @@ pool.compare(fit3, fit2, method = "wald")
 
 #D3(fit2, fit1) #best model is fit2
 #D3(fit3, fit2) #sig
-#D3(fit4, fit3) #no sig between fit4 and fit3, therefore, no need this 
+#D3(fit4, fit3) #no sig between fit4 and fit3, therefore, no need this
 #D3(fit5, fit4)
 
-mitml::testModels(fit2, fit1, method = "D3", use = "likelihood")
-mitml::testModels(fit3, fit2, method = "D3", use = "likelihood")
-mitml::testModels(fit4, fit3, method = "D3", use = "likelihood")
-mitml::testModels(fit5, fit4, method = "D3", use = "likelihood")
-
-
-
-#to get the AIC
-#to get AIC
-model1 <- "CATS ~ time +(1|ID)"
-model2 <- "CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID)"
-model3 <- "CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
-model4 <- "CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
-model5 <- "CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID)"
-
-modlist1 <- lmerModList(data=ds_data_list, model1) #this function is able to pool AIC from imputed data
-modlist2 <- lmerModList(data=ds_data_list, model2)
-modlist3 <- lmerModList(data=ds_data_list, model3)
-modlist4 <- lmerModList(data=ds_data_list, model4)
-modlist5 <- lmerModList(data=ds_data_list, model5)
-
-summary(modlist1)
-summary(modlist2)
-summary(modlist3)
-summary(modlist4)
-summary(modlist5)
 
 
 
@@ -576,7 +644,7 @@ mod_table2 <- mod_table%>%
 
 
 #ds_data_list2<- as.mira(ds_data_list)
-#draw plot for 
+#draw plot for
 ds_predictions <- jtools::make_new_data(fit5[[1]], pred = "CATS") #If you need more options to appear for variables in your newdata for predictions, add them here
 preds <- sapply(fit5, predict, newdata=ds_predictions, allow.new.levels = TRUE)
 phats  <- preds[1,]
@@ -588,23 +656,23 @@ pred_vals <- summary(miceadds::pool_mi(phats, vw))%>%
 ds_predictions <- ds_predictions %>% dplyr::bind_cols(pred_vals) #ds_prediction to get the estmiated parameters
 
 
-cmod_data <- cmod %>% 
-  map(function(x){as.data.frame(x$ID) %>% 
-      setDT(keep.rownames = TRUE)%>% 
-      dplyr::select(rn, `(Intercept)`, `time:cats_baseline`, time)}) %>% 
-  #unlist() %>% 
-  as.data.frame() %>% 
+cmod_data <- cmod %>%
+  map(function(x){as.data.frame(x$ID) %>%
+      setDT(keep.rownames = TRUE)%>%
+      dplyr::select(rn, `(Intercept)`, `time:cats_baseline`, time)}) %>%
+  #unlist() %>%
+  as.data.frame() %>%
   dplyr::mutate(
-    intercept = rowMeans(.[c("X.Intercept.", "X.Intercept..1", "X.Intercept..2", "X.Intercept..3", "X.Intercept..4", 
+    intercept = rowMeans(.[c("X.Intercept.", "X.Intercept..1", "X.Intercept..2", "X.Intercept..3", "X.Intercept..4",
                              "X.Intercept..5", "X.Intercept..6", "X.Intercept..7", "X.Intercept..8", "X.Intercept..9")]),
     slope      = rowMeans(.[c("time", "time.1", "time.2", "time.3", "time.4",
                               "time.5", "time.6", "time.7", "time.8", "time.9")]),
     slope2     = rowMeans(.[c("time.cats_baseline", "time.cats_baseline.1","time.cats_baseline.2", "time.cats_baseline.3", "time.cats_baseline.4",
                               "time.cats_baseline.5", "time.cats_baseline.6", "time.cats_baseline.7", "time.cats_baseline.8", "time.cats_baseline.9")])
-  ) %>% 
-  dplyr::select(rn, intercept, slope, slope2) %>% 
+  ) %>%
+  dplyr::select(rn, intercept, slope, slope2) %>%
   rename(id = rn)
-  
+
 
 
 palette_stage <- c("FK"="#79c8c3"  , "SAU"="#ce8a81", "FK declined"="#9d72a7")
@@ -635,6 +703,64 @@ MAMI::mami(ds_data_list2, model="gaussian", outcome = "CATS", id="ID", criterion
 
 
 
+#-----mixed_effect2---------------------
+#This a a new chunck, particularly for the new right psc-17 variable, based on ds_data_list3
+#Our goal is to keep the original model setting as much as possible
+
+fit1<-with(ds_data_list3, exp = glmer(formula(CATS ~ time +(1|ID)))
+)
+
+
+fit2<-with(ds_data_list3, exp = glmer(formula(CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID))),
+)
+
+
+fit3<-with(ds_data_list3, exp = glmer(formula(CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
+)
+
+
+fit4<-with(ds_data_list3, exp = glmer(formula(CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID))),
+           )
+
+fit5 <- with(ds_data_list3, exp = glmer(formula(CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID))),
+)
+
+
+
+
+res1 <- summary(lmer_pool(fit1))
+res2 <- summary(lmer_pool(fit2))
+res3 <- summary(lmer_pool(fit3))
+res4 <- summary(lmer_pool(fit4))
+res5 <- summary(lmer_pool(fit5))
+
+#get the likelihood ratio test.
+mitml::testModels(fit2, fit1, method = "D3", use = "likelihood")
+mitml::testModels(fit3, fit2, method = "D3", use = "likelihood")
+mitml::testModels(fit4, fit3, method = "D3", use = "likelihood")
+mitml::testModels(fit5, fit4, method = "D3", use = "likelihood")
+
+
+
+#to get the AIC
+#to get AIC
+model1 <- "CATS ~ time +(1|ID)"
+model2 <- "CATS ~ time + Age + Gender +  Exp_CATS_Total + psc17_total+(1|ID)"
+model3 <- "CATS ~ time + Age + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
+model4 <- "CATS ~ time + Age*time + Gender + cats_baseline+ Exp_CATS_Total + psc17_total+(1|ID)"
+model5 <- "CATS ~ time + cats_baseline+Age*time + Gender + Exp_CATS_Total + psc17_total+time *cats_baseline +(1|ID)"
+
+modlist1 <- lmerModList(data=ds_data_list3, model1) #this function is able to pool AIC from imputed data
+modlist2 <- lmerModList(data=ds_data_list3, model2)
+modlist3 <- lmerModList(data=ds_data_list3, model3)
+modlist4 <- lmerModList(data=ds_data_list3, model4)
+modlist5 <- lmerModList(data=ds_data_list3, model5)
+
+summary(modlist1)
+summary(modlist2)
+summary(modlist3)
+summary(modlist4)
+summary(modlist5)
 
 
 #---check_assumption-----------------
@@ -647,11 +773,11 @@ residual_raw <- resid(fit_raw)
 Plot.Model.Linearity<-plot(resid(fit_raw), fit_raw@frame$CATS)
 
 
-ds_use2 <- ds_use %>% 
+ds_use2 <- ds_use %>%
   dplyr::mutate(
     na_use =  apply(., 1, FUN = function(row){
       any(is.na(row))})
-  ) %>% 
+  ) %>%
   dplyr::filter(na_use==F)
 
 
@@ -664,7 +790,7 @@ ds_use3<-cbind(ds_use2, Model.Res2, model.sdRes)
 Levene.Model<- lm(Model.Res2 ~ ID, data=ds_use3) #ANOVA of the squared residuals
 anova(Levene.Model) #displays the results
 
-#since the p value is greater than 0.05, we can say that the variance of the residuals is equal 
+#since the p value is greater than 0.05, we can say that the variance of the residuals is equal
 #and therefore the assumption of homoscedasticity is met Not
 Plot.Model <- plot(fit_raw) #creates a fitted vs residual plot
 Plot.Model
@@ -681,7 +807,7 @@ sd_residual <- as.data.frame(fit[[1]]@residuals) %>% dplyr::rename(residual = `f
   dplyr::filter(sd_residual<=3 & sd_residual>=-3)
 
 
-ds_use4<-ds_use3 %>% 
+ds_use4<-ds_use3 %>%
   dplyr::filter(model.sdRes<=3 & model.sdRes>=-3)
 
 
@@ -690,25 +816,25 @@ ds_use4<-ds_use3 %>%
 
 
 #-----visual----------------------
-baseline <- ds_use2 %>% 
-  dplyr::filter(rep=="wave_1") %>% 
-  dplyr::select(ID, CATS) %>% 
+baseline <- ds_use2 %>%
+  dplyr::filter(rep=="wave_1") %>%
+  dplyr::select(ID, CATS) %>%
   dplyr::mutate(
     cate_baseline_level = dplyr::if_else(CATS >= 28, "baseline high", "baseline low")
-  ) %>% 
+  ) %>%
   dplyr::select(-CATS)
 
 
-ds_use_visual <- ds_use %>% 
+ds_use_visual <- ds_use %>%
   dplyr::mutate(
-    rep = dplyr::recode(rep,"wave_1" = 1, 
-                        "wave_2" = 2, 
-                        "wave_3" = 3, 
+    rep = dplyr::recode(rep,"wave_1" = 1,
+                        "wave_2" = 2,
+                        "wave_3" = 3,
                         "wave_4" = 4),
-    
+
     CATS = dplyr::if_else(is.na(CATS), 0, CATS)
-  ) %>% 
-  dplyr::left_join(baseline, by="ID") %>% 
+  ) %>%
+  dplyr::left_join(baseline, by="ID") %>%
   dplyr::select(
     cate_baseline_level, rep, CATS
   )
