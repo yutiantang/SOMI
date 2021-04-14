@@ -179,9 +179,18 @@ ggplot(ds_use0, aes(x = rep, y = non_missing, label=nonmissing_percent))+
   #theme(axis.title.x=element_blank(),
   #      axis.text.x=element_blank(),
   #      axis.ticks.x=element_blank())+
-  labs(title = NULL, x="measure", y="count")
+  labs(title = NULL, x="measure time", y="count")
 
-
+ggplot(ds_use0, aes(x = rep, y = missing, label=missing_percent))+
+  geom_bar(stat = "identity", position='dodge', alpha=.4, color="#c1a16f", fill="#e07587") +
+  geom_text(aes(label = missing_percent),  size = 3,  color="#22353c", vjust=-0.5)+
+  #scale_color_manual(values = sek_col, guide = "none") +
+  #scale_fill_manual(values =  sek_col) +
+  theme_bw()+
+  #theme(axis.title.x=element_blank(),
+  #      axis.text.x=element_blank(),
+  #      axis.ticks.x=element_blank())+
+  labs(title = NULL, x="measure time", y="count")
 
 #---imputation------------
 #formating the data from wide to long
