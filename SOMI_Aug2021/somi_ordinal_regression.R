@@ -129,8 +129,8 @@ ds_imp <- complete(ds_mids,action = "long",include = TRUE) %>%  #orginal
       mh_screening_percent>80~4L,
       TRUE~NA_integer_
     )),
-    # wave1 = dplyr::recode(wave, `1` = -1, `2`=0, `3`=0),
-    # wave2 = dplyr::recode(wave, `1` = 0, `2`=0, `3`=1),
+    wave1 = dplyr::recode(wave, `1` = -1, `2`=0, `3`=0),
+    wave2 = dplyr::recode(wave, `1` = 0, `2`=0, `3`=1),
     group = relevel(group, ref="C") ,
 
     # referal_services_not_provide_percent_cate_3a = dplyr::if_else(referal_services_not_provide_percent3a==0, 0L, 1L),
@@ -150,7 +150,33 @@ ds_data_list <- miceadds::mids2datlist(ds_mids)
 
 
 
-# ---- analysis ----------------------------------------------------------------
+# ---- analysis-clm ----------------------------------------------------------------
+fit0_a = with(ds_data_list, exp = clm("screen_use_percent_ordinal2 ~ wave1+wave2 + group"))
+res0_a <- summary(pool(fit0_a)) %>% dplyr::tibble()
+result0_a <-pool(fit0_a)
+
+
+fit0_b = with(ds_data_list, exp = clm("screen_use_percent_ordinal2 ~ group", nominal = ~ wave1+wave2))
+res0_b <- summary(pool(fit0_b)) %>% dplyr::tibble()
+
+
+
+fit0_c <- clm("screen_use_percent_ordinal2 ~ wave1+wave2",
+                 nominal= ~group:wave1+group:wave2,
+                 link = "probit", data=ds_example, Hess = TRUE)
+
+fit0_c <- clm("screen_use_percent_ordinal2 ~ wave1+wave2 + group+group*wave1+group*wave2",
+              #nominal= ~wave1+wave2,
+              scale = ~wave1+wave2,
+              link = "probit", data=ds_example, Hess = TRUE)
+
+summary(fit0_c)
+nominal_test(fit0_c)
+scale_test(fit0_c)
+
+# analysis-clmm -----------------------------------------------------------
+
+
 # model1a <- "screen_use_percent_ordinal2~group+wave"
 # fit1a<-ordinal::clm(model1a, data=ds_example)
 # summary(fit1a)
@@ -184,6 +210,7 @@ res1b <- summary(pool(fit1b_1)) %>% dplyr::tibble()
 #   dplyr::mutate_all(., as.numeric)
 result1b_1 <- pool(fit1b_1)
 result1b_2 <- pool(fit1b_2)
+res1b<-pooling.clmm(fit1b_1)
 
 #
 # fit1c <- with(ds_data_list, exp = clmm("mh_screening_percent_ordinal1 ~ wave + group + wave:group + (1|site_id)",
@@ -195,11 +222,13 @@ result1b_2 <- pool(fit1b_2)
 #                                           nominal= ~ wave1, random = as.factor(site_id),
 #                                           link = "probit", Hess = TRUE))
 
+
+
 fit1c_1 <- clmm2(screen_use_percent_ordinal2 ~ wave1*group+wave2*group,
                  nominal= ~wave1+wave2, random = as.factor(site_id),
                  link = "probit", data=ds_example, Hess = TRUE)
 
-fit1c_1 <- clmm2(screen_use_percent_ordinal2 ~ group,
+fit1c_1 <- clmm2(screen_use_percent_ordinal2 ~ group+group:wave1+group:wave2,
                  nominal= ~wave1+wave2, random = as.factor(site_id),
                  link = "probit", data=ds_example, Hess = TRUE)
 
@@ -209,6 +238,8 @@ fit1c_1$coefficients
 fit1c_1$Theta
 fit1c_1$beta
 
+
+nominal_test()
 
 
 
