@@ -52,35 +52,10 @@ palette_group <-c(
 
 
 ds_mids <- read_rds(file=paste0(data_input, "ds_mids_siteLevel.rds"))
-ds_aug_somi <- read_rds(file=paste0(data_input, "ds_full_data_use_siteLevel.rds"))
+ds_aug_somi <- read_rds(file=paste0(data_input, "ds_somi_use.rds"))
 
-
+write.csv(ds_aug_somi, file=paste0(data_input, "ds_somi_use.csv"))
 # ---- tweak-data --------------------------------------------------------------
-
-ds_example <- ds_aug_somi %>%
-  #dplyr::filter(wave == 2) %>%
-  dplyr::select(site_id, wave, group, screen_use_count, screen_use_percent,screen_use_percent_ordinal,
-                mh_screening_percent, mh_screening_percent_ordinal) %>%
-  dplyr::mutate(
-    screen_use_percent_ordinal1 = as.factor(screen_use_percent_ordinal+1L),
-    screen_use_percent_ordinal2 = as.factor(dplyr::case_when(screen_use_percent==0~1L,
-                                                   screen_use_percent>0 & screen_use_percent<=20~2L,
-                                                   screen_use_percent>20 & screen_use_percent<=80~3L,
-                                                   screen_use_percent>80~4L,
-                                                   TRUE~NA_integer_)),
-    mh_screening_percent_ordinal1 = as.factor(mh_screening_percent_ordinal+1L),
-    mh_screening_percent_ordinal2 = as.factor(dplyr::case_when(
-      mh_screening_percent==0~1L,
-      mh_screening_percent>0 & mh_screening_percent<=20~2L,
-      mh_screening_percent>20 & mh_screening_percent<=80~3L,
-      mh_screening_percent>80~4L,
-      TRUE~NA_integer_
-  )),
-  group = relevel(group, ref="C"),
-  wave1 = dplyr::recode(wave, `1` = -1, `2`=0, `3`=0),
-  wave2 = dplyr::recode(wave, `1` = 0, `2`=0, `3`=1),)
-
-
 
 
 # ---- descriptive -------------------------------------------------------------
@@ -107,7 +82,11 @@ D1<-descriptive_plot(data=ds_example, y=screen_use_percent, DV="screen use perce
 his1<-distribution_plot(ds_example, screen_use_percent, DV="screen use")
 his2<-distribution_plot(ds_example, screen_use_percent_ordinal, DV="screen use")
 his3<-distribution_plot(ds_example, as.integer(screen_use_percent_ordinal2), DV="screen use")
-
+ds_example %>%
+  dplyr::group_by(group, screen_use_percent_ordinal2) %>%
+  dplyr::summarise(
+    response_n = dplyr::n()
+  )
 
 
 
@@ -121,6 +100,8 @@ ds_imp <- complete(ds_mids,action = "long",include = TRUE) %>%  #orginal
                                                   screen_use_percent>20 & screen_use_percent<=80~3L,
                                                   screen_use_percent>80~4L,
                                                   TRUE~NA_integer_)),
+    screen_use_percent_ordinal3 = as.numeric(screen_use_percent_ordinal2),
+
     mh_screening_percent_ordinal1 = as.factor(mh_screening_percent_ordinal+1L),
     mh_screening_percent_ordinal2 = as.factor(dplyr::case_when(
       mh_screening_percent==0~1L,
@@ -187,10 +168,11 @@ scale_test(fit1a)
 
 
 #use lmer
-model1a <- "screen_use_percent~group*wave1 +group*wave2+ (1 |site_id)"
+model1a <- "screen_use_percent_ordinal3~group*wave1 +group*wave2+ (1 |site_id)"
 fit1a <- with(ds_data_list, exp = lme4::lmer(formula(model1a)))
-res1a <- summary(miceadds::lmer_pool(fit1a)) %>% dplyr::tibble()
+res1a <- summary(miceadds::lmer_pool(fit1a))
 res1a <-miceadds::lmer_pool(fit1a)
+
 
 
 # fit1a_2 <- ordinal::clmm("screen_use_percent_ordinal2~group+wave + (1|site_id)", data=ds_example,  threshold = "equidistant")
@@ -262,4 +244,28 @@ clmm.control(method = "nlminb", trace = 0,
              maxIter = 50, gradTol = 1e-4, maxLineIter = 50, useMatrix = FALSE,
              innerCtrl = c("warnOnly", "noWarn", "giveError"),
              checkRanef = c("warn", "error", "message"))
+
+# ---- present---------
+output_nice_table <- function(result){
+  mod_table <- cbind(rownames({{result}}), {{result}}) %>%
+    dplyr::rename(
+      variable = `rownames({`
+    ) %>%
+    dplyr::mutate(
+      coefficient = sprintf("%0.3f", est),
+      se = sprintf("%0.3f", se),
+      t = sprintf("%0.3f", t),
+      p = sprintf("%0.3f", p),
+      lCI = sprintf("%0.3f", `lo 95`),
+      uCI = sprintf("%0.3f", `hi 95`),
+      `95% CI` = paste0("[", lCI, ", ",uCI, "]")
+    )%>%
+    dplyr::select(coefficient, se, t, p, `95% CI`) %>%
+    knitr::kable(format = 'html', booktabs=T)%>%
+    #kable(booktabs = T) %>%
+    kableExtra::kable_styling(bootstrap_options = "striped", full_width = F)
+  mod_table
+}
+output_nice_table(res1a)
+
 
