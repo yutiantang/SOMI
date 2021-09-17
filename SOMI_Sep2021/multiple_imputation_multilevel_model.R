@@ -18,12 +18,15 @@ library(magrittr) #Pipes
 library(ggplot2)
 library(mice)
 library(micemd)
+library(miceadds)
+library(mimtl)
 library(VIM)
 library(lme4)
 library(lmerTest)
 library(table1)
 library(miselect)
 library(officer)
+library(mitml)  #install.packages("mitml")
 # library(tidyverse)
 requireNamespace("miceadds")
 requireNamespace("data.table")
@@ -160,6 +163,40 @@ plot_md_pattern <- function(dat) {
   return(list(p, pat))
 }
 
+unchange <- c(
+  "source",
+  "event_name",
+  "participant_master_id",
+  "record_id",
+  "dose_hv_duration_enroll_days"    ,
+ "dose_hv_duration_last_visit_days",
+ "dose_hv_visit_count"             ,
+ "dose_hv_visit_count_cut_5"       ,
+  "dose_hv_visit_any",
+  "model_hv",
+  "model_hv_source"  ,
+  "model_hv_any_gpav" ,
+  "model_hv_primary",
+  "model_hv_any_c1"  ,
+  "model_hv_any_pat"  ,
+  "model_hv_any_sc" ,
+  "race_ethnicity_h1",
+  "caucasian",
+  "hispanic",
+  "participant_gender_h1",
+  "delta_dose_since_baseline",
+  "delta_outcome_since_baseline",
+  "father_present",
+  "father_present_freq",
+  "county_ok",
+  "county_tulsa",
+  "cdemo_gender_index_child",
+  "demo_child_index_male",
+  "outcome_baseline",
+  "dad_interview",
+  "drugs_alcohol_frequency_h1",
+  "dose_hv_visit_terminal_count",
+  "dose_baseline"  )
 
 
 # ---- load-data ----------------------------------------------------------------
@@ -169,7 +206,7 @@ plot_md_pattern <- function(dat) {
 ds                        <- readr::read_rds(path_in)
 imputed_Data_mom          <- readr::read_rds(path_out_imputation_mom)
 imputed_Data_dad          <- readr::read_rds(path_out_imputation_dad)
-
+avp <- read.csv("C:/Users/YTHOMPSO/Dropbox/Work/Teaching/2021SOMI_9/avp.csv", header=FALSE)
 
 # ---- tweak-data ----------------------------------------------------------------
 gpav_ids <- ds$participant_master_id[ds$source ==c('gpav 5', 'gpav 6') ]
@@ -316,9 +353,37 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
 
 
   psych::describe.by(ds_mom$ipvas_total_score, group = ds_mom$wave)
+
+
+  aa<- ds_mi %>% select(participant_master_id,  record_id, dad_interview, source, wave,
+                        model_hv,
+                        model_hv_primary,
+                        model_hv_source,
+                        model_hv_any_gpav,
+                        model_hv_any_c1,
+                        model_hv_any_pat,
+                        model_hv_any_sc,
+                        dose_hv_visit_any,
+  )
 # ---- imputation_prepare --------------------------------------------------------------
+  ds_wave <- ds %>% #check and found only two waves for both mom and dad
+    dplyr::select(
+      participant_master_id, record_id, dad_interview,
+    ) %>%
+    dplyr::group_by(participant_master_id, record_id, dad_interview) %>%
+    dplyr::summarise_all(., dplyr::first, na.rm=T) %>%
+    dplyr::mutate(
+      wave1 = rep(1L),
+      wave2 = rep(2L),
+    ) %>%
+    tidyr::gather(key, wave, -participant_master_id, -record_id, -dad_interview,) %>%
+    dplyr::ungroup()
+
+
+
+
   ds_mi <- ds %>%
-    dplyr::filter(!is.na(phl_ace_score)) %>%
+    #dplyr::filter(!is.na(phl_ace_score)) %>% #DV needs to be complete?
     dplyr::group_by(participant_master_id, record_id, dad_interview, date_taken) %>%
     dplyr::arrange(date_taken) %>%
     dplyr::summarise_all(., dplyr::first) %>%
@@ -332,48 +397,55 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
     dplyr::group_by(participant_master_id, record_id, dad_interview) %>%
     dplyr::mutate_at(unchange, dplyr::first) %>%
     dplyr::ungroup() %>%
-    dplyr::select( -c(`Data Source`,
-                      `Index Child Age`,
-                      `HV Visits`,
-                      `Most Recent HV`,
-                      participant_gender_h1,
-                      marital_status_h1,
-                      demo_education_h1,
-                      participant_edu_c,
-                      participant_edu_college,
-                      participant_edu_some_college_vo_tech,
-                      participant_edu_some_high_school,
-                      participant_edu_less_ninth_grade,
-                      participant_male,
-                      work_status_h1,
-                      participant_edu,
-                      county_ok,
-                      county_tulsa,
-                      outcome_baseline,
-                      delta_outcome_since_baseline
-    )) %>%
-    tidyr::separate(record_id, c("first", "second", "third")) %>%
+    tidyr::separate(record_id, c("first", "second", "third"), remove = F) %>%
     dplyr::mutate(
-      third = dplyr::if_else(is.na(third), 0, 1),
+      third = dplyr::if_else(is.na(third), 0, 1), #warning is from here
       individual_id = as.numeric(paste0(first, second, third))
     ) %>%
-    dplyr::select(-first, -second, -third)
+      dplyr::select( -c(`Data Source`,
+                        `Index Child Age`,
+                        `HV Visits`,
+                        `Most Recent HV`,
+                        participant_gender_h1,
+                        marital_status_h1,
+                        demo_education_h1,
+                        participant_edu_c,
+                        participant_edu_college,
+                        participant_edu_some_college_vo_tech,
+                        participant_edu_some_high_school,
+                        participant_edu_less_ninth_grade,
+                        participant_male,
+                        work_status_h1,
+                        participant_edu,
+                        county_ok,
+                        county_tulsa,
+                        outcome_baseline,
+                        delta_outcome_since_baseline,
+                        first, second, third,
+                        event_name,
+                        survey_iteration,
+                        date_taken,
+                        key,
+                        demo_county_id_h1,
+      ))
 
 
   rng_seed <- 1127575261
   skip_imputation_vars <- c("source",
-                            "event_name",
+                            #"event_name",
                             "participant_master_id",
                             "individual_id",
                             "Case_number",
-                            "date_taken",
-                            "survey_iteration",
+                            #"date_taken",
+                            #"survey_iteration",
                             "dose_hv_duration_enroll_days",
                             "ers_mom_seen_3m",
                             "model_hv"  ,
                             "model_hv_source"  ,
                             "model_hv_any_gpav" ,
                             "race_ethnicity_h1",
+                            "caucasian",
+                            "hispanic",
                             "dose_visit_terminal_count",
                             "participant_gender_h1",
                             "wai_total",
@@ -389,12 +461,14 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
                             "father_present_freq",
                             "county_tulsa",
                             "cdemo_gender_index_child",
+                            "demo_child_index_male",
                             "outcome_baseline",
                             "dad_interview",
                             "model_hv_primary",
                             "drugs_alcohol_frequency_h1",
                             "key",
-                            # "individual_id",
+                             "individual_id",
+                            "record_id",
                              "wave"
   )
 
@@ -405,9 +479,7 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
 
 
   pattern<-c(
-  "ers_mom_seen_3m",
   "income_cat_h1",
-  "demo_county_id_h1",
   "demo_household_size_h1",
   "pregnant_current_h1",
   "birth_count_current",
@@ -425,9 +497,7 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
   "dad_engage_child_m",
   "dad_engage_hv_m",
   "dad_attitude_hv_m",
-  "demo_child_index_male",
-  "caucasian",
-  "hispanic",
+  "ipvas_total_score",
   "married_cohabiting",
   "employed",
   "participant_edu_num",
@@ -442,10 +512,11 @@ distribution_plot3(ds_mom, ipvas_total_score, DV="IPVAS total score")
     dplyr::select(all_of(pattern)) %>%
     plot_md_pattern() #the function we created
 
-
+  missing_pattern[[1]]
+  nrow(missing_pattern[[2]])
   #aa<- ds_mi_mom %>% dplyr::group_by(individual_id) %>% dplyr::summarise(sample=dplyr::n(), wave_count = dplyr::n_distinct(wave))
   #check ICC
-  check_icc <- lmer(ipvas_total_score~1+(1|participant_master_id), data=ds_mom)
+  check_icc <- lmer(ipvas_total_score~1+(1|participant_master_id), data=ds_mi_mom)
 summary(check_icc)
 19.05/(19.05+26.46)
 
@@ -453,17 +524,17 @@ summary(check_icc)
 # ---- imputation --------------------------------------------------------------
 #step1: specify matrix
 skip_var_index <- which(names(ds_mi_mom) %in% skip_imputation_vars)
-cluster_id_index <- which(names(ds_mi_mom) %in% "individual_id")
-random_effect_index <- which(names(ds_mi_mom) %in% "wave")
-impute_vars <- setdiff(setdiff(names(ds_mi_mom), skip_imputation_vars), "wave")
+cluster_id_index <- which(names(ds_mi_mom) %in% "participant_master_id")
+#random_effect_index <- which(names(ds_mi_mom) %in% "wave")
+impute_vars <- setdiff(names(ds_mi_mom), skip_imputation_vars)
 impute_var_index <- which(names(ds_mi_mom) %in% impute_vars)
 
 #way 1:
 nvars <- ncol(ds_mi_mom)
 pmat  <- matrix(1,nvars,nvars) #fix effect
 
-pmat[design_var_index,] <- 0
-pmat[,design_var_index] <- 0
+pmat[skip_var_index,] <- 0
+pmat[,skip_var_index] <- 0
 # pmat[, random_effect_index]<- 2
 # pmat[random_effect_index,]<- 2
 pmat[, cluster_id_index]<- -2
@@ -485,14 +556,35 @@ aa<-as.data.frame(pmat)
 
 #step2: specify method
 #way 1
-meth <- vector()
-meth[impute_var_index] = "2l.glm.norm"
-meth[skip_var_index] = ""
+
+meth1<-ds_mi_mom %>%
+  #dplyr::select(all_of(impute_vars)) %>%
+  dplyr::summarise_all(., class) %>%
+  t() %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column(., "variable") %>%
+  dplyr::rename(type = V1) %>%
+  tibble::rownames_to_column(., "index") %>%
+  dplyr::mutate(
+    assign_meth = as.character(dplyr::case_when(variable %in% impute_vars & type == "factor"~"2l.jomo",
+                                   variable %!in% impute_vars~"",
+                                   TRUE~"2l.glm.norm")),
+  ) %>%
+  dplyr::filter((assign_meth %!in% c(""))) %>%
+  dplyr::select(-type, -variable, -index) %>%
+  as.vector()
+
+
+meth2 <- vector()
+meth2[impute_var_index] = meth1$assign_meth
+meth2[skip_var_index] = ""
+
 
 #way2
 method<-find.defaultMethod(ds_mi_mom,cluster_id_index) %>% as.data.frame() %>%
   tibble::rownames_to_column(., "variable") %>%
-  dplyr::filter(variable %in% impute_vars)
+  dplyr::filter(variable %in% impute_vars) %>%
+  dplyr::filter(!is.na(`.`))
 
 
 print(method)
@@ -503,8 +595,62 @@ order <- names(pat)
 impute_order <-paste(which(names(ds_mi_mom) %in% order), collapse = ",")
 
 
-imputed_Data <- mice(ds_mi_mom, predictorMatrix = pmat, method = meth, m=5, seed = 12335)
+imputed_Data <- mice(ds_mi_mom, predictorMatrix = pmat, method = meth2, m=5, seed = 12335, maxit=100)
+
+plot(imputed_Data,  plot.burnin=TRUE, c("ipvas_total_score"))
+plot(imputed_Data,  plot.burnin=TRUE, c("dad_attitude_hv_m"))
+
+#analysis phase
+form_mom <-"ipvas_total_score~dose_hv_visit_count+dad_engage_child_m+dad_engage_hv_m+ dad_attitude_hv_m+(1|participant_master_id)"
+
+
+
+fit_mom1 <- with(imputed_Data, exp = lme4::lmer(formula(form_mom)))
+
+#pooling
+result<-summary(miceadds::lmer_pool(fit_mom1$analyses)) %>%
+  knitr::kable(format = 'html', booktabs=T)%>%
+  #kable(booktabs = T) %>%
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = F)
+
+
+
+# other_paper -------------------------------------------------------------
+#use the result from people's paper that comparing the packages
+ds_avp <- avp %>%
+  tidyr::separate(V1, c("size", "dataset", "missing_perc", "package", "LR", "SVM"), sep=" ",remove = T) %>%
+  dplyr::filter(package %in% c("MICE", "AMELIA-II"))
+
+
+ds_avp_use <-  ds_avp %>%
+  dplyr::filter(dataset == "BNG") %>%
+  dplyr::mutate(
+    size = dplyr::recode(size, "10,000"=10000L, "15,000"=15000L),
+    package = as.factor(package),
+    missing_perc = as.integer(missing_perc),
+    LR = as.numeric(LR),
+    SVM = as.numeric(SVM)
+  )
 
 
 
 
+palette_package   <- c("MICE"="#0000FF", "AMELIA-II" = "#ff0000")
+line_type_outcome <- c("MICE" = "dotdash", "AMELIA-II" = "solid")
+
+ds_avp_use %>%
+  dplyr::filter(size==10000L) %>%
+ggplot(aes(x = missing_perc, y = LR, linetype=package)) +
+  geom_point(aes(y = LR)) +
+  geom_line(aes(y = LR, group = package, colour=package), stat = "identity",
+            position = "identity", size=1.5) +
+  coord_cartesian(ylim = c(0, 0.15)) +
+  scale_color_manual(values = palette_package) +
+  scale_fill_manual(values = palette_package) +
+  scale_linetype_manual(values=line_type_outcome, guide = "none") +
+  theme_bw()+
+  #theme(legend.position="none")+
+  #theme(panel.grid.major = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank())+
+  #theme(plot.margin = unit(c(1,0.1,0.1,0.1), "lines"))+
+  theme(text=element_text(size=12,  family="sans"))+
+  labs(title="N=10,000, LR", x="missing percent", y="Accuracy variance percentage")
