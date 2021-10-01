@@ -216,12 +216,13 @@ ipvas <- grep('ipvas_', names(ds), value=TRUE) #ipvas has 17 items + total score
 ipvas_item <- ipvas[which(ipvas != "ipvas_total_score")]
 
 test<- ds[ipvas_item]
-psych::alpha(test, check.keys=TRUE) 0.83 # 09/07/21
+psych::alpha(test, check.keys=TRUE)# 0.83 # 09/07/21
 
 psych::describe.by(ds$ipvas_total_score, group = ds$race_ethnicity_h1)
 
 
-ds%<>%
+#ds%<>%
+  ds2<-ds %>%
   dplyr::filter(participant_master_id %in% gpav_ids & source %in% c( "gpav 5", "gpav 6")) %>% #, "eto"
   gpav_process_phl_ace() %>% # Process aces from gpav 5
   gpav_process_aces() %>%
@@ -237,25 +238,25 @@ ds%<>%
                 ers_dad_seen_3m,
                 ers_mom_seen_3m,
                 father_present,
-                race_ethnicity_h1,
+                race_ethnicity_h1, # constant
                 income_cat_h1,
                 work_status_h1,
                 marital_status_h1,
                 demo_education_h1,
-                participant_gender_h1,
-                demo_county_id_h1,
+                participant_gender_h1, # probably constant?
+                demo_county_id_h1, # don't impute maybe?
                 demo_household_size_h1,
                 pregnant_current_h1,
                 birth_count_current,
                 cdemo_index_child_age_years,
-                cdemo_gender_index_child,
+                cdemo_gender_index_child,# probably constant?
                 participant_age,
-                phl_ace_score,
+                phl_ace_score, # confirm but probably constant
                 dose_hv_duration_enroll_days,
                 dose_hv_duration_last_visit_days,
                 dose_hv_visit_count,
                 dose_hv_visit_count_cut_5,
-                dose_hv_visit_any,
+                dose_hv_visit_any, # once it's true, should always be true
                 model_hv,
                 model_hv_source,
                 model_hv_any_gpav,
@@ -264,17 +265,17 @@ ds%<>%
                 model_hv_any_sc,
                 drugs_alcohol_frequency_h1,
                 ace_c_score,
-                dad_interview,
-                dad_engage_child_ff,
+                dad_interview,# fake, constant
+                # dad_engage_child_ff,
                 #ers_emotional_ff,
                 #ers_caregive_ff,
-                dad_engage_child_m,
+                # dad_engage_child_m,
                 #ers_emotional_m,
                 #ers_caregive_m,
-                dad_engage_hv_ff,
-                dad_attitude_hv_ff,
-                dad_engage_hv_m,
-                dad_attitude_hv_m,
+                # dad_engage_hv_ff,
+                # dad_attitude_hv_ff,
+                # dad_engage_hv_m,
+                # dad_attitude_hv_m,
                 ipvas_total_score
   ) %>%
   dplyr::group_by(participant_master_id) %>%
@@ -295,14 +296,9 @@ ds%<>%
   dplyr::ungroup() %>%
   dplyr::select(-client_row_index) %>%
   gpav_process_demo_vars()%>%   # Process demographic variables - prep for regression
-  gpav_process_baseline_hv_engagement#() %>%
-# dplyr::group_by(participant_master_id, record_id, dad_interview) %>%
-# dplyr::arrange(date_taken) %>%
-# dplyr::mutate(
-#   wave =
-# ) %>%
-# dplyr::ungroup()
+  gpav_process_baseline_hv_engagement
 
+aa<- ds %>% dplyr::select(participant_master_id, record_id, dad_interview, date_taken)
 
 
 # ---- descriptive -------------------------------------------------------------
@@ -541,8 +537,8 @@ pmat[, cluster_id_index]<- -2
 diag(pmat) <- 0
 
 
-pmat
-aa<-as.data.frame(pmat)
+# pmat
+# aa<-as.data.frame(pmat)
 #way 2:
 # temp1<-mice(ds_mi_mom, m=1, maxit=0)
 # temp <- temp1$predictorMatrix
@@ -558,29 +554,35 @@ aa<-as.data.frame(pmat)
 #way 1
 
 meth1<-ds_mi_mom %>%
+  purrr::map_chr(class) %>%
+  tibble::enframe(
+    name = "variable",
+    value = "type"
+  ) %>%
   #dplyr::select(all_of(impute_vars)) %>%
-  dplyr::summarise_all(., class) %>%
-  t() %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column(., "variable") %>%
-  dplyr::rename(type = V1) %>%
-  tibble::rownames_to_column(., "index") %>%
+  # dplyr::summarise_all(., class) %>%
+  # #purrr::map_chr(class) #it is another way to summarise the variable's type.
+  # t() %>%
+  # as.data.frame() %>%
+   tibble::rowid_to_column(., var="index") %>%
+  # dplyr::rename(type = V1) %>%
+  #tibble::rownames_to_column(., "index") %>%
   dplyr::mutate(
     assign_meth = as.character(dplyr::case_when(variable %in% impute_vars & type == "factor"~"2l.jomo",
                                    variable %!in% impute_vars~"",
                                    TRUE~"2l.glm.norm")),
   ) %>%
-  dplyr::filter((assign_meth %!in% c(""))) %>%
-  dplyr::select(-type, -variable, -index) %>%
-  as.vector()
+ # dplyr::filter((assign_meth %!in% c(""))) %>%
+  #dplyr::select(-type, -variable, -index) %>%
+  dplyr::pull(assign_meth) #pull the vector from the data frame.
 
 
-meth2 <- vector()
-meth2[impute_var_index] = meth1$assign_meth
-meth2[skip_var_index] = ""
+# meth2 <- vector()
+# meth2[impute_var_index] = meth1$assign_meth
+# meth2[skip_var_index] = ""
 
 
-#way2
+#way2: use the function to find the method --> not converged sometimes.
 method<-find.defaultMethod(ds_mi_mom,cluster_id_index) %>% as.data.frame() %>%
   tibble::rownames_to_column(., "variable") %>%
   dplyr::filter(variable %in% impute_vars) %>%
@@ -595,7 +597,7 @@ order <- names(pat)
 impute_order <-paste(which(names(ds_mi_mom) %in% order), collapse = ",")
 
 
-imputed_Data <- mice(ds_mi_mom, predictorMatrix = pmat, method = meth2, m=5, seed = 12335, maxit=100)
+imputed_Data <- mice(ds_mi_mom, predictorMatrix = pmat, method = meth1, m=5, seed = 12335, maxit=100)
 
 plot(imputed_Data,  plot.burnin=TRUE, c("ipvas_total_score"))
 plot(imputed_Data,  plot.burnin=TRUE, c("dad_attitude_hv_m"))
