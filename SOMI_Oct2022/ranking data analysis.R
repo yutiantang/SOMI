@@ -111,10 +111,10 @@ plot(res_pl_qv1, ylab="worth (log)", main = NULL, cex = 1.5, pch=10)
 
 
 # ---- class-activity ----------------------------------------------------------
-#input rankings
-machine_learning <- c()
-stats_modeling <- c()
-exp_design <-c()
+#input rankings from the audience
+machine_learning <- c(3,1,3,2,3,1,1)
+stats_modeling <- c(2,2,2,1,2,3,2)
+exp_design <-c(1,3,1,3,1,2,3)
 
 ds_class_activity <- data.frame(machine_learning, stats_modeling, exp_design)
 ds_class_activity_ranked <- PlackettLuce::as.rankings(ds_class_activity)
