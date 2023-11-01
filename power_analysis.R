@@ -69,4 +69,29 @@ design3c <- pwrss.t.2means(mu1 = 30, mu2 = 28,  kappa = 1, sd1=12,  power=0.4, a
 plot(design3c)
 
 
+#
+design4a <- pwrss.t.2means(mu1 = 30, mu2 = 28,  kappa = 1, sd1=4, n2=50, alpha = 0.05, alternative = "not equal")
+plot(design4a)
 
+design3a <- pwrss.t.2means(mu1 = 30, mu2 = 28,  kappa = 1, sd1=8, n2=200, alpha = 0.05, alternative = "not equal")
+plot(design3a)
+
+
+#---- power analysis in regression------
+#Two predictors
+#R^2=0.4,
+reg1 <- pwrss.f.reg(r2 = 0.4, k = 2, n=30, alpha = 0.05)
+plot(reg1)
+
+power.f.test(18.009, 2, 27, alpha = 0.05)
+
+#R^2 change = 0.1
+power.f.test(2.775, 4, 25, alpha = 0.05)
+#power = 0.194
+reg2 <- pwrss.f.reg(r2 = 0.1, k = 4, m=2, n=30, alpha = 0.05)
+
+#single regression coefficient
+reg3 <- pwrss.t.reg(beta1 = 0.20, k = 2, r2 = 0.40,
+            power = .80, alpha = 0.05, alternative = "not equal")
+
+plot(reg3)
