@@ -181,7 +181,7 @@ res5_norm_diff %>%
   theme_bw()
 
 
-sample_size <-100000
+sample_size <-50000
 
 sample_norm_diff <- as.data.frame(replicate(sample_size, sample(res5_norm_diff$mean_diff, size=100))) 
 
