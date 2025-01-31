@@ -104,14 +104,14 @@ for (N in 0:24){
       N = N
     ) %>%
     rbind(res3_fix)
-  
+
   res3_fix <- sampling_distribution0
 }
 
-res3_fix_use <- res3_fix %>% 
+res3_fix_use <- res3_fix %>%
   dplyr::mutate(
     `z/N` = round(7/N, 2)
-  ) %>% 
+  ) %>%
   dplyr::filter(N != 0)
 
 #calculate the distribution function
@@ -123,14 +123,14 @@ for (N in 0:24){
       N = N
     ) %>%
     rbind(res4_fix)
-  
+
   res4_fix <- sampling_distribution0
 }
 
-res4_fix_use <- res4_fix %>% 
+res4_fix_use <- res4_fix %>%
   dplyr::mutate(
     `z/N` = round(7/N, 2)
-  ) %>% 
+  ) %>%
   dplyr::filter(N != 0)
 
 
@@ -150,15 +150,18 @@ print(res4_fix_use)
 # ---- normal-distribution -----------------------------------------------------
 #sampling distribution of mean difference
 nor_popu1 <- rnorm(n=500, mean=35, sd=5)
-nor_popu2 <- rnorm(n=500, mean=35.1, sd=5) 
+nor_popu2 <- rnorm(n=500, mean=35.1, sd=5)
 
-res5_norm_diff <- data.frame(nor_popu1, nor_popu2) %>% 
+res5_norm_diff <- data.frame(nor_popu1, nor_popu2) %>%
   dplyr::mutate(
-    mean_diff = nor_popu1-nor_popu2
+    diff = nor_popu1-nor_popu2
   )
 
-res5_norm_diff2 <- res5_norm_diff %>% 
-  dplyr::select(population1 = nor_popu1, population2=nor_popu2) %>% 
+mean(res5_norm_diff$diff)
+sd(res5_norm_diff$diff) #7.132
+
+res5_norm_diff2 <- res5_norm_diff %>%
+  dplyr::select(population1 = nor_popu1, population2=nor_popu2) %>%
   tidyr::pivot_longer(cols = c("population1", "population2"))
 
 res5_norm_diff2 %>%
@@ -172,8 +175,8 @@ res5_norm_diff2 %>%
   theme_bw()
 
 
-res5_norm_diff %>% 
-  ggplot(aes(x=mean_diff))+
+res5_norm_diff %>%
+  ggplot(aes(x=diff))+
   geom_histogram( stat = "bin",
                   position = "stack", colour="white", fill="#003c30", binwidth=0.5)+
   theme(panel.grid.major = element_blank(), panel.grid.minor.x = element_blank(), panel.border=element_blank(),
@@ -181,9 +184,9 @@ res5_norm_diff %>%
   theme_bw()
 
 
-sample_size <-50000
+sample_size <-100000
 
-sample_norm_diff <- as.data.frame(replicate(sample_size, sample(res5_norm_diff$mean_diff, size=100))) 
+sample_norm_diff <- as.data.frame(replicate(sample_size, sample(res5_norm_diff$diff, size=100)))
 
 # aa<- as.matrix(sample_norm_diff)
 # kernel_est <- stats::density(aa)
@@ -191,32 +194,39 @@ sample_norm_diff <- as.data.frame(replicate(sample_size, sample(res5_norm_diff$m
 
 
 
-sample_norm_diff1 <- sample_norm_diff %>% 
-  dplyr::mutate_all(as.numeric) %>% 
+sample_norm_diff1 <- sample_norm_diff %>%
+  dplyr::mutate_all(as.numeric) %>%
   dplyr::summarise(
     across(V1:paste0("V", sample_size), ~ mean(.x, na.rm = TRUE)),
-  ) %>% 
-  t() %>% 
-  as.data.frame() %>% 
+  ) %>%
+  t() %>%
+  as.data.frame() %>%
   dplyr::select(`mean of difference` = V1)
 
-sample_norm_diff2 <- sample_norm_diff %>% 
-  dplyr::mutate_all(as.numeric) %>% 
+sample_norm_diff2 <- sample_norm_diff %>%
+  dplyr::mutate_all(as.numeric) %>%
   dplyr::summarise(
     across(V1:paste0("V", sample_size), ~sd(.x, na.rm = TRUE))
-  ) %>% 
-  t() %>% 
-  as.data.frame()%>% 
+  ) %>%
+  t() %>%
+  as.data.frame()%>%
   dplyr::select(`sd of difference` = V1)
 
-sample_norm_diff_use <- cbind(sample_norm_diff1, sample_norm_diff2) %>% 
+
+
+
+
+var(sample_norm_diff2$`sd of difference`) #n=100: 0.189, n=1000: 0.195, n=10000: 0.207
+sd(sample_norm_diff2$`sd of difference`) #n=100: 0.435, n=1000: 0.442, n=10000: 0.454
+
+sample_norm_diff_use <- cbind(sample_norm_diff1, sample_norm_diff2) %>%
   dplyr::mutate(
     density = rnorm(sample_size, mean = `mean of difference`, sd=`sd of difference`),
-  ) 
+  )
 
-# sample_norm_diff_use %>% 
+# sample_norm_diff_use %>%
 #   ggplot(aes(density))+
-#   geom_density(alpha = 0.6) 
+#   geom_density(alpha = 0.6)
 #   geom_bar(stat="identity", position = "dodge", alpha = 0.6, fill = "#003c30", width = 0.15) +
 #   theme_bw()+
 #   theme(panel.grid.major = element_blank(), panel.grid.minor.x = element_blank(), panel.border=element_blank(),
@@ -224,12 +234,12 @@ sample_norm_diff_use <- cbind(sample_norm_diff1, sample_norm_diff2) %>%
 
 
 
-  
+
 sample_norm_diff_use %>%
 ggplot(aes(x=`mean of difference`))+
   geom_histogram( stat = "bin",
                   position = "stack", colour="white", fill="#003c30", binwidth=0.1)+
-  
+
   #geom_histogram(aes(y=..density..), colour="white", fill="#003c30", binwidth=0.1)+
   #geom_density(alpha=.2, fill="#FF6666") +
   theme(panel.grid.major = element_blank(), panel.grid.minor.x = element_blank(), panel.border=element_blank(),
