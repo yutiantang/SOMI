@@ -184,7 +184,7 @@ res5_norm_diff %>%
   theme_bw()
 
 
-sample_size <-100000
+sample_size <-10000
 
 sample_norm_diff <- as.data.frame(replicate(sample_size, sample(res5_norm_diff$diff, size=100)))
 
@@ -211,8 +211,6 @@ sample_norm_diff2 <- sample_norm_diff %>%
   t() %>%
   as.data.frame()%>%
   dplyr::select(`sd of difference` = V1)
-
-
 
 
 
